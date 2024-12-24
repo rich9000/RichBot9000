@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Content Fetcher</title>
+    <script>
+        function fetchContent() {
+            const fileName = '/richbotdisplay/displays/' + document.getElementById('fileInput').value;
+
+            if (fileName) {
+                fetch(fileName)
+                    .then(response => {
+                        if (response.ok) {
+                            return response.text();
+                        }
+                        throw new Error('Network response was not ok.');
+                    })
+                    .then(data => {
+                        console.log(data);
+
+                        document.getElementById('contentArea').innerHTML = data;
+                    })
+                    .catch(error => {
+                        console.error('There was a problem with the fetch operation:', error);
+                    });
+            }
+        }
+
+        setInterval(fetchContent, 10000);
+
+    </script>
+</head>
+<body>
+    <input type="text" id="fileInput" placeholder="Enter file name" />
+    <div id="contentArea"></div>
+</body>
+</html>

@@ -1,0 +1,238 @@
+Tasks and Projects Management Instructions
+General Overview
+This API provides functionality for managing tasks and projects. The API can:
+
+Create, update, delete, and list tasks.
+Create, update, delete, and list projects.
+Assign users to tasks.
+Reorder tasks within a project.
+Each project can contain multiple tasks, and tasks can either be standalone or part of a project. The tasks have an order within the project and can be assigned to one or more users. Users can request actions such as creating tasks, updating task details, or viewing lists of tasks or projects.
+
+Key Operations
+1. Task Operations
+Create Task:
+
+Use the create_task function to create a new task.
+Required fields: title.
+Optional fields: description, project_id, order.
+Example Input:
+
+json
+Copy code
+{
+  "name": "create_task",
+  "description": "Create a new task.",
+  "parameters": {
+    "title": "Design Landing Page",
+    "description": "Design and implement the homepage for the website.",
+    "project_id": 2,
+    "order": 3
+  }
+}
+Update Task:
+
+Use the update_task function to modify an existing task's details.
+Required fields: task_id.
+Optional fields: title, description, project_id, order.
+Example Input:
+
+json
+Copy code
+{
+  "name": "update_task",
+  "description": "Update the details of an existing task.",
+  "parameters": {
+    "task_id": 5,
+    "title": "Update the header design",
+    "description": "Modify the design according to the feedback."
+  }
+}
+Delete Task:
+
+Use the delete_task function to remove a task by its ID.
+Required fields: task_id.
+Example Input:
+
+json
+Copy code
+{
+  "name": "delete_task",
+  "description": "Delete a task by its ID.",
+  "parameters": {
+    "task_id": 5
+  }
+}
+List Tasks:
+
+Use the list_tasks function to retrieve a list of tasks, filtered by optional parameters like project_id, assigned_user_id, or creator_user_id.
+Example Input:
+
+json
+Copy code
+{
+  "name": "list_tasks",
+  "description": "Retrieve a list of tasks, optionally filtered by project or user.",
+  "parameters": {
+    "project_id": 3,
+    "assigned_user_id": null,
+    "creator_user_id": null
+  }
+}
+2. Project Operations
+Create Project:
+
+Use the create_project function to create a new project.
+Required fields: name.
+Optional fields: description.
+Example Input:
+
+json
+Copy code
+{
+  "name": "create_project",
+  "description": "Create a new project for task management.",
+  "parameters": {
+    "name": "Website Redesign",
+    "description": "Project to redesign the company website."
+  }
+}
+Update Project:
+
+Use the update_project function to modify an existing project's details.
+Required fields: project_id.
+Optional fields: name, description.
+Example Input:
+
+json
+Copy code
+{
+  "name": "update_project",
+  "description": "Update the details of an existing project.",
+  "parameters": {
+    "project_id": 2,
+    "name": "Website Redesign Phase 2",
+    "description": "Second phase of the website redesign project."
+  }
+}
+Delete Project:
+
+Use the delete_project function to remove a project by its ID.
+Required fields: project_id.
+Example Input:
+
+json
+Copy code
+{
+  "name": "delete_project",
+  "description": "Delete a project by its ID.",
+  "parameters": {
+    "project_id": 2
+  }
+}
+List Projects:
+
+Use the list_projects function to retrieve all projects.
+Example Input:
+
+json
+Copy code
+{
+  "name": "list_projects",
+  "description": "Retrieve a list of all projects.",
+  "parameters": {}
+}
+3. User Assignment Operations
+Assign User to Task:
+
+Use the assign_user_to_task function to assign a user to a task.
+Required fields: task_id, user_id.
+Example Input:
+
+json
+Copy code
+{
+  "name": "assign_user_to_task",
+  "description": "Assign a user to a task.",
+  "parameters": {
+    "task_id": 7,
+    "user_id": 12
+  }
+}
+Unassign User from Task:
+
+Use the unassign_user_from_task function to remove a user from a task.
+Required fields: task_id, user_id.
+Example Input:
+
+json
+Copy code
+{
+  "name": "unassign_user_from_task",
+  "description": "Unassign a user from a task.",
+  "parameters": {
+    "task_id": 7,
+    "user_id": 12
+  }
+}
+4. Task Reordering
+Reorder Tasks in Project:
+
+Use the reorder_tasks_in_project function to change the order of tasks within a project.
+Required fields: project_id, task_orders (array of task IDs in the desired order).
+Example Input:
+
+json
+Copy code
+{
+  "name": "reorder_tasks_in_project",
+  "description": "Reorder tasks within a project.",
+  "parameters": {
+    "project_id": 3,
+    "task_orders": [5, 2, 7, 4]
+  }
+}
+5. User Operations
+List Users:
+
+Use the list_users function to retrieve a list of users with optional filters for role or status.
+Example Input:
+
+json
+Copy code
+{
+  "name": "list_users",
+  "description": "Retrieve a list of users, optionally filtered by role or status.",
+  "parameters": {
+    "role": "admin",
+    "status": "active"
+  }
+}
+Handling Errors and Validation
+The API should return appropriate error messages and handle input validation gracefully. Some examples include:
+
+If a required field is missing, return an error like:
+
+json
+Copy code
+{ "error": "Task title is required." }
+If a task, project, or user is not found:
+
+json
+Copy code
+{ "error": "Task not found." }
+Authorization and Permissions
+Ensure that only authorized users can perform certain actions, such as creating tasks, assigning users, or deleting projects. Handle permission checks before performing any action.
+
+For example:
+
+A user should only be able to update or delete tasks they created or have been assigned.
+Only users with administrative privileges should be able to delete projects.
+Example Assistant Workflow
+User Command: “Create a new project called ‘Website Redesign’ and add the task ‘Design landing page’ to it.”
+Assistant Action:
+First, call create_project to create the project.
+Then call create_task with the newly created project_id to add the task.
+Response to User: “The project ‘Website Redesign’ has been created, and the task ‘Design landing page’ has been added.”
+Conclusion
+This API facilitates project and task management by allowing users to create, update, list, and delete tasks and projects, assign users, and reorder tasks. The instructions define how the assistant can call these functions and what parameters are necessary for successful execution. The assistant should relay helpful feedback and error messages back to the user in case of missing information or issues.
+

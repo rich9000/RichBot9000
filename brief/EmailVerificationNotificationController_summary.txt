@@ -1,0 +1,5 @@
+Summary of methods in EmailVerificationNotificationController.php:
+
+1. Method: store
+   - Description: Resends the email verification notification.
+   - Parameters: $request (Request)

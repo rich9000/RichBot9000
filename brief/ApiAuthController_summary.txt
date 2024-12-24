@@ -1,0 +1,13 @@
+Summary of methods in ApiAuthController.php:
+
+1. Method: login
+   - Description: Logs in a user with provided credentials.
+   - Parameters: $request (LoginRequest)
+
+2. Method: logout
+   - Description: Logs out the authenticated user.
+   - Parameters: None
+
+3. Method: refresh
+   - Description: Refreshes the authentication token.
+   - Parameters: None

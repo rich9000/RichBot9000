@@ -1,0 +1,13 @@
+Summary of methods in OllamaApiClient.php:
+
+1. Method: getModelInfo
+   - Description: Fetches model information from the Ollama API.
+   - Parameters: $modelId (int)
+
+2. Method: createModel
+   - Description: Creates a new model in Ollama.
+   - Parameters: $modelData (array)
+
+3. Method: updateModel
+   - Description: Updates an existing model.
+   - Parameters: $modelId (int), $newData (array)

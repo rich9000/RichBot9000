@@ -1,0 +1,9 @@
+Summary of methods in ToolExecutor.php:
+
+1. Method: executeTool
+   - Description: Executes a tool with given parameters.
+   - Parameters: $toolName (string), $params (array)
+
+2. Method: validateExecution
+   - Description: Validates the tool execution input.
+   - Parameters: $toolName (string), $params (array)

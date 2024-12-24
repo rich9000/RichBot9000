@@ -1,0 +1,9 @@
+Summary of methods in ApiFileController.php:
+
+1. Method: uploadFile
+   - Description: Handles file uploads to the server.
+   - Parameters: $request (Request)
+
+2. Method: downloadFile
+   - Description: Handles file downloads from the server.
+   - Parameters: $fileId (int)

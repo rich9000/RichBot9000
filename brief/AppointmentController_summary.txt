@@ -1,0 +1,13 @@
+Summary of methods in AppointmentController.php:
+
+1. Method: create
+   - Description: Schedules a new appointment.
+   - Parameters: $request (Request)
+
+2. Method: update
+   - Description: Updates the details of an existing appointment.
+   - Parameters: $appointmentId (int), $request (Request)
+
+3. Method: delete
+   - Description: Cancels an existing appointment.
+   - Parameters: $appointmentId (int)

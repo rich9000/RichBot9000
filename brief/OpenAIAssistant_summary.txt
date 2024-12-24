@@ -1,0 +1,13 @@
+Summary of methods in OpenAIAssistant.php:
+
+1. Method: generateText
+   - Description: Generates text based on input using OpenAI's API.
+   - Parameters: $input (string)
+
+2. Method: analyzeSentiment
+   - Description: Analyzes the sentiment of the given text.
+   - Parameters: $text (string)
+
+3. Method: summarizeText
+   - Description: Summarizes the provided text.
+   - Parameters: $text (string)

@@ -1,0 +1,9 @@
+Summary of methods in EventLogger.php:
+
+1. Method: logEvent
+   - Description: Logs an event with a specified message and level.
+   - Parameters: $message (string), $level (string)
+
+2. Method: logError
+   - Description: Logs an error event.
+   - Parameters: $error (string)

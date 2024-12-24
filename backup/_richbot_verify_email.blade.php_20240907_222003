@@ -1,0 +1,134 @@
+<div class="card hidden_email_verified col-md-6 col-lg-4 m-3">
+    <div class="card-header">
+        <h2 class="h5 font-weight-bold text-dark">
+            <i class="fas fa-envelope" style="color: red;"></i>   Email Not Verified
+        </h2>
+    </div>
+
+    <div class="card-body">
+        <p class="mt-2 text-muted">
+            <input type="text" placeholder="Email Code" id="richbot_email_token"/>
+            <button class="verify-button verify-richbot-sms-button" data-type="">Verify</button>
+        </p>
+
+        <form id="verificationEmailForm" class="d-inline">
+            <button type="submit" class="btn btn-link p-0 m-0 align-baseline">Resend Verification Code</button>
+        </form>
+    </div>
+</div>
+
+<div class="card hidden_email_not_verified col-md-6 col-lg-4 m-3">
+    <div class="card-header">
+        <h2 class="h5 font-weight-bold text-dark">
+            <i class="fas fa-envelope" style="color: green;"></i>   Email Verified
+        </h2>
+    </div>
+
+    <div class="card-body">
+        <p class="mt-2 text-muted">
+          sweet
+        </p>
+
+    </div>
+</div>
+
+
+
+
+
+<script>
+    document.querySelector('.verify-richbot-sms-button').addEventListener('click', function(e) {
+        e.preventDefault();
+
+        const richbot_email_token = document.getElementById('richbot_email_token').value;
+
+        if (!richbot_email_token) {
+            alert('Please enter the phone code.');
+            return;
+        }
+
+        fetch('/api/verify-email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': 'Bearer ' + appState.apiToken, // Add token if needed
+            },
+            body: JSON.stringify({ token: richbot_email_token }),
+        })
+            .then(response => {
+
+                console.log('response',response);
+
+                if (!response.ok) {
+                    throw new Error('Phone verification failed.');
+                }
+                return response.json();
+            })
+            .then(data => {
+
+                console.log('data.user',data.user);
+                console.log('data.user',data.message);
+
+
+                if(data.user){
+
+                    alert('returned a user.');
+                    if(data.user.email === appState.user.email){
+
+                        alert('Phone verified successfully.');
+                        // Optionally hide the card or update UI
+
+                      //  document.querySelector('.hidden_phone_verified').style.display = 'none';
+
+                        console.log('udated appstate user',data.user,appState.user)
+
+
+                        appState.user = data.user;
+                        localStorage.setItem('app_state', JSON.stringify(appState));
+
+                        console.log('udated appstate',appState.user)
+
+                        updateUserUI();
+
+                    }
+
+//Todo: do this all better through here
+
+                } else {
+
+                    alert('Invalid code. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error verifying phone:', error);
+                showAlert('An error occurred. Please try again. <br/>' + error,'warning');
+            });
+    });
+    document.getElementById('verificationEmailForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        fetch('/api/resend-email-verification', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + appState.apiToken, // Add token if needed
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Verification email resent successfully.');
+                } else {
+                    alert('Failed to resend verification email.');
+                }
+            })
+            .catch(error => {
+                console.error('Error resending verification email:', error);
+                alert('An error occurred. Please try again.');
+            });
+    });
+
+
+
+</script>

@@ -1,0 +1,3 @@
+# RMA
+
+[STRUCTURE](./STRUCTURE.md)

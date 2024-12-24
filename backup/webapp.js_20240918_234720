@@ -1,0 +1,562 @@
+// public/webapp/webapp.js
+// Function to hide elements with a specific class
+function hideElementsByClass(className) {
+    document.querySelectorAll('.' + className).forEach(element => {
+        element.classList.add('hidden');
+    });
+}
+
+// Function to show elements with a specific class
+function showElementsByClass(className) {
+    document.querySelectorAll('.' + className).forEach(element => {
+        element.classList.remove('hidden');
+    });
+}
+
+function setClassTextContent(className,text) {
+
+    // Set the text content for all elements with the class 'profile-name'
+    document.querySelectorAll('.' + className).forEach(element => {
+        element.textContent = text;
+    });
+
+}
+function showAlert(message, type = 'success') {
+    // Create the alert div with Bootstrap classes
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.setAttribute('role', 'alert');
+
+    // Set the inner HTML of the alert
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    // Append the alert to the specific container
+    const alertContainer = document.getElementById('alertContainer');
+    if (alertContainer) {
+        alertContainer.appendChild(alertDiv);
+    } else {
+        console.warn('Alert container not found! Appending to body instead.');
+        document.body.appendChild(alertDiv);
+    }
+
+    // Optionally, set a timeout to automatically close the alert after a few seconds
+    setTimeout(() => {
+        alertDiv.classList.remove('show');
+        alertDiv.classList.add('fade');
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 150); // Wait for the fade-out transition to complete before removing
+    }, 10000); // 10000ms = 10 seconds
+}
+const updateUserUI = () => {
+
+    if(appState.tokens.richbot){
+
+        if (appState.user) {
+
+            hideElementsByClass('hidden_richbot_logged_in');
+            showElementsByClass('hidden_richbot_logged_out');
+
+            console.log(appState.user.email_verified_at);
+            if(appState.user.email_verified_at){
+
+                hideElementsByClass('hidden_email_verified');
+                showElementsByClass('hidden_email_not_verified');
+
+            } else {
+
+                hideElementsByClass('hidden_email_not_verified');
+                showElementsByClass('hidden_email_verified');
+
+            }
+
+            console.log(appState.user.phone_verified_at);
+            if(appState.user.phone_verified_at){
+
+                hideElementsByClass('hidden_phone_verified');
+                showElementsByClass('hidden_phone_not_verified');
+
+            } else {
+
+                hideElementsByClass('hidden_phone_not_verified');
+                showElementsByClass('hidden_phone_verified');
+
+            }
+
+
+
+
+
+
+
+
+
+            setClassTextContent('richbot_user_name',appState.user.name);
+            setClassTextContent('richbot_user_email',appState.user.email);
+            setClassTextContent('richbot_user_phone_number',appState.user.phone_number);
+
+            populateServicesList();
+
+        }
+
+
+    } else {
+
+        showElementsByClass('hidden_email_verified');
+
+
+        setClassTextContent('richbot_name','');
+        setClassTextContent('richbot_email','');
+
+        showElementsByClass('hidden_richbot_logged_in');
+        hideElementsByClass('hidden_richbot_logged_out');
+
+    }
+
+
+
+    if(appState.tokens.rainbow){
+
+        hideElementsByClass('hidden_rainbow_dash_logged_in');
+        showElementsByClass('hidden_rainbow_dash_logged_out');
+
+    } else {
+
+        showElementsByClass('hidden_rainbow_dash_logged_in');
+        hideElementsByClass('hidden_rainbow_dash_logged_out');
+
+    }
+
+    if(appState.tokens.bambooHR){
+
+        hideElementsByClass('hidden_bamboohr_logged_in');
+        showElementsByClass('hidden_bamboohr_logged_out');
+
+    } else {
+
+
+        showElementsByClass('hidden_bamboohr_logged_in');
+        hideElementsByClass('hidden_bamboohr_logged_out');
+
+    }
+
+    if(appState.tokens.libreNMS){
+
+        hideElementsByClass('hidden_librenms_logged_in');
+        showElementsByClass('hidden_librenms_logged_out');
+    } else {
+        showElementsByClass('hidden_librenms_logged_in');
+        hideElementsByClass('hidden_librenms_logged_out');
+
+    }
+
+};
+
+
+const populateServicesList = () => {
+    const servicesList = document.getElementById('servicesList');
+    servicesList.innerHTML = '';
+
+    console.log('populateServicesList',appState,appState.tokens);
+
+    for (const [service, token] of Object.entries(appState.tokens)) {
+
+        const listItem = document.createElement('li');
+        listItem.textContent = service.charAt(0).toUpperCase() + service.slice(1);
+        //listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center','m-1');
+
+        const statusBadge = document.createElement('span');
+
+        statusBadge.classList.add('badge', 'rounded-pill','m-1');
+        if (token) {
+            statusBadge.classList.add('bg-success');
+            statusBadge.textContent = listItem.textContent;
+        } else {
+            statusBadge.classList.add('bg-secondary');
+            statusBadge.textContent = listItem.textContent;
+        }
+        //listItem.appendChild(statusBadge);
+        //servicesList.appendChild(listItem);
+        servicesList.appendChild(statusBadge);
+    }
+};
+
+async function ajaxRequest(url, method = 'GET', data = {}, token = null) {
+    return new Promise((resolve, reject) => {
+        if (!token) {
+            token = appState.apiToken;
+        }
+
+        const headers = {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        };
+
+        const options = {
+            method: method,
+            headers: headers,
+        };
+
+        // If the method is POST, PUT, or PATCH, we add the body to the request
+        if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+            options.body = JSON.stringify(data);
+        }
+
+        fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    // Convert non-2xx HTTP responses into errors
+                    return response.json().then(errorData => {
+                        reject(errorData);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => resolve(data))
+            .catch(error => reject(error));
+    });
+}
+
+// Function to load content dynamically using fetch
+function loadContent(token, url, targetId = 'contentArea') {
+    return new Promise((resolve, reject) => {
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Accept': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // Parse JSON from response
+            })
+            .then(data => {
+
+                appState.current_content_section = targetId;
+
+
+                // Insert the loaded content into the target element
+                document.getElementById(targetId).innerHTML = data.content;
+                console.log('Authenticated User:', data.user);
+                resolve(data);
+
+            })
+            .catch(err => {
+                alert('Failed to load content. Please try again.');
+                reject(err);
+            });
+    });
+}
+
+// Helper Function to Show Sections
+const showSection = (sectionId) => {
+    // Hide all content sections
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.add('hidden');
+    });
+
+
+    console.log('showing section ', sectionId);
+
+    // Show the targeted section
+    document.getElementById(sectionId).classList.remove('hidden');
+
+    // Remove 'active' class from all nav links and dropdown items
+    document.querySelectorAll('.nav-link, .dropdown-item').forEach(link => {
+        link.classList.remove('active');
+    });
+
+    // Add 'active' class to the clicked link (main nav or dropdown)
+    document.querySelectorAll(`[data-section="${sectionId}"]`).forEach(link => {
+        link.classList.add('active');
+        //section.classList.add('hidden');
+    });
+};
+// Attach the event listener to a static parent element
+document.body.addEventListener('click', function(event) {
+    // Check if the clicked element matches your target dynamically created element
+    console.log(event);
+
+    if (event.target && event.target.id === 'loadUsersButton') {
+        console.log('Dynamic button with ID "dynamicButton" clicked!');
+        fetch("/api/users", {
+            headers: {
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.querySelector('#usersTable tbody');
+                tbody.innerHTML = data.data.map(user => `
+                <tr>
+                    <td>${user.name}</td>
+                    <td>${user.email}${user.email_verified_at ? '' : '<span class="text-danger"> <i class="fas fa-exclamation-circle"></i></span>'}</td>
+                    <td>${user.phone_number ? `${user.phone_number}${user.phone_verified_at ? '' : '<span class="text-danger"> <i class="fas fa-exclamation-circle"></i></span>'}` : '<span class="text-muted">N/A</span>'}</td>
+                    <td>${user.roles.length ? user.roles.map(role => role.name).join(', ') : '<span class="text-muted">No Roles</span>'}
+                    <button class="btn btn-primary btn-sm assign-roles-btn" data-user-id="${user.id}" data-user-name="${user.name}">Assign Roles</button></td>
+                    <td>${new Date(user.created_at).toLocaleString()}</td>
+                    <td><button class="btn btn-info btn-sm more-info-btn" data-user-id="${user.id}" data-user-name="${user.name}">View</button></td>
+                </tr>
+            `).join('');
+            });
+    }
+
+    if (event.target && event.target.classList.contains('dynamic-button')) {
+        console.log('Dynamically created button clicked!');
+    }
+});
+
+//   console.log('loaded appstate',appState);
+
+document.addEventListener('DOMContentLoaded', () => {
+
+
+    const saved_state = localStorage.getItem('app_state');
+
+    appState = {};
+
+
+  //  alert('checking saved state');
+
+    console.log('saved state', saved_state);
+
+
+    if (!saved_state || saved_state === "null" || saved_state === "undefined") {
+        //if(!saved_state){
+
+        console.log('making new appstate')
+       // alert('making new appState');
+
+        appState = {
+            apiToken: null,
+            user: null,
+            richbot: null,
+            dashUser: null,
+            dashApiToken: null,
+            users: [],
+            current_thread: null, // Holds the current active thread
+            threads: [], // List of all threads
+            debug: false,
+            current_content_section: 'publicContent',
+            tokens: {
+                richbot: null,
+                rainbow: null,
+                bambooHR: null,
+                libreNMS: null,
+                train: null,
+            },
+        };
+        localStorage.setItem('app_state', JSON.stringify(appState));
+
+   //     console.log('new appstate' , appState);
+
+    } else {
+
+        appState = JSON.parse(saved_state);
+
+
+    }
+
+
+/// Event listener for dynamic content loading and section showing
+    document.querySelectorAll('.nav-content-loader').forEach(loader => {
+        loader.addEventListener('click', function(e) {
+            e.preventDefault();
+            const view = this.getAttribute('data-view');
+            const targetId = this.getAttribute('data-section') || 'dynamic_content_section';
+
+            const method = 'GET';
+            const url = `/api/content/${view}`;
+
+            console.log(view, targetId);
+
+            // Check if the target element exists, if not, create it
+            let targetElement = document.getElementById(targetId);
+
+            console.log(targetElement);
+
+            const headers = {
+                'Accept': 'application/json',
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Content-Type': 'application/json'
+            };
+
+            const options = {
+                method: method,
+                headers: headers,
+            };
+
+            // If the method is POST, PUT, or PATCH, we add the body to the request
+            if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+                options.body = JSON.stringify(data);
+            }
+
+            fetch(url, options)
+                .then(response => {
+                    if (!response.ok) {
+                        // Convert non-2xx HTTP responses into errors
+                        return response.json().then(errorData => {
+                            reject(errorData);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+
+                    alert(data);
+                    console.log('response data',data);
+                    if(targetElement){
+                        targetElement.remove();
+                    }
+                    targetElement = document.createElement('div');
+                    targetElement.id = targetId;
+                    targetElement.classList.add('content-section');
+                    targetElement.innerHTML = data.content;
+                    document.getElementById('main-container').appendChild(targetElement);
+                    showSection(targetId);
+
+                })
+                .catch(error => {
+
+                });
+
+            // Remove active class from all section showers
+            document.querySelectorAll('.nav-section-toggler','nav-section-shower').forEach(link => {
+                link.classList.remove('active');
+            });
+
+            this.classList.add('active');
+        });
+    });
+
+    // Event Listeners
+    document.querySelectorAll('.nav-section-toggler').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.dataset.section;
+            showSection(sectionId);
+        });
+    });
+
+
+
+    // Rainbow Dashboard Login Form Submission
+    document.getElementById('rainbowLoginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('rainbowEmail').value;
+        const password = document.getElementById('rainbowPassword').value;
+
+        try {
+            // Replace with actual API endpoint
+            const response = await axios.post('https://dash.rainbowtel.net/api/login', { email, password });
+            appState.tokens.rainbow = response.data.token;
+            localStorage.setItem('app_state', JSON.stringify(appState));
+
+            location.reload();
+
+            //showAlert('Logged in to Rainbow Dashboard successfully!');
+            //showSection('bambooSection');
+        } catch (error) {
+            console.error(error);
+            showAlert('Failed to login to Rainbow Dashboard. Please check your credentials.', 'danger');
+        }
+    });
+
+
+
+    // BambooHR Token Form Submission
+    document.getElementById('bambooTokenForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = document.getElementById('bambooToken').value;
+
+
+            const date = new Date();
+            date.setDate(date.getDate() - 30); // Subtract 30 days from today
+            start = date.toISOString().split('T')[0]; // Format as 'YYYY-MM-DD'
+
+
+            date.setDate(date.getDate() + 14); // Add 14 days (2 weeks) to today
+            end = date.toISOString().split('T')[0]; // Format as 'YYYY-MM-DD'
+
+        //Basic MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4
+
+        const base_token = btoa(token + ':x');
+
+        console.log(base_token, 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4');
+
+        if(base_token != 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4'){
+
+            alert('base token bad ' + base_token + " != 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4'");
+
+        }
+
+
+
+
+// Example GET Request
+        axios.get('/api/proxy/bamboohr/v1/company_information', {
+            headers: {
+                'Authorization': 'Bearer '+ appState.tokens.richbot,
+                'Accept': 'application/json',
+                // Add more headers as needed
+            },
+            params: {
+                apikey: token,
+
+            }
+        })
+            .then(response => {
+
+                appState.tokens.bambooHR = token;
+                localStorage.setItem('app_state', JSON.stringify(appState));
+
+                console.log(response.data);
+                showAlert('BambooHR token uploaded successfully!');
+                showSection('profileSection');
+                updateUserUI();
+
+
+                console.log(appState);
+
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+
+
+
+    });
+
+    // Logout Button
+    document.getElementById('logoutButton').addEventListener('click', (e) => {
+        e.preventDefault();
+
+        appState = null;
+        localStorage.removeItem('app_state');
+
+        location.reload();
+
+        //updateUserUI();
+        showAlert('Logged out successfully!', 'info');
+        //showSection('richbotSection');
+
+    });
+
+
+    console.log('loaded appstate at the end: ',appState);
+
+    // Initialize App
+
+    showSection('richbotSection');
+    updateUserUI();
+
+});

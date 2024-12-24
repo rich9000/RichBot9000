@@ -1,0 +1,13 @@
+Summary of methods in StableDiffusionClient.php:
+
+1. Method: generateImage
+   - Description: Generates an image using Stable Diffusion based on a prompt.
+   - Parameters: $prompt (string)
+
+2. Method: getAvailableModels
+   - Description: Retrieves a list of available Stable Diffusion models.
+   - Parameters: None
+
+3. Method: getImage
+   - Description: Retrieves an image by its ID.
+   - Parameters: $imageId (string)

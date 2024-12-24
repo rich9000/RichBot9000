@@ -1,0 +1,5 @@
+Summary of methods in VerifyEmailController.php:
+
+1. Method: __invoke
+   - Description: Marks the user's email as verified.
+   - Parameters: $request (Request)

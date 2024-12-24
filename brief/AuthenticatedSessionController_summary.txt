@@ -1,0 +1,9 @@
+Summary of methods in AuthenticatedSessionController.php:
+
+1. Method: store
+   - Description: Authenticates the user and starts a new session.
+   - Parameters: $request (Request)
+
+2. Method: destroy
+   - Description: Logs out the user and destroys the session.
+   - Parameters: $request (Request)
