@@ -110,162 +110,151 @@ appState.audio = {
 
 class MediaHandler {
     constructor() {
-        this.mediaRecorders = new Map();
-        this.streams = new Map();
-        this.chunks = new Map();
-        this.CHUNK_SIZE = 4096; // Smaller chunk size
-        this.SAMPLE_RATE = 16000; // Lower sample rate
         this.isRecording = false;
+        this.processorNode = null;
+        this.mediaStream = null;
+        this.BUFFER_SIZE = 16384;
+        this.audioBuffer = new Float32Array(0);
+        this.source = null;
     }
 
-    async startRecording(type = 'audio', options = {}) {
-        if (this.isRecording) {
-            return true;
-        }
-
-        const constraints = {
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                sampleRate: this.SAMPLE_RATE
-            }
-        };
-
+    async startRecording() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            const recorder = new MediaRecorder(stream, {
-                mimeType: this.getSupportedMimeType(type),
-                audioBitsPerSecond: 32000 // Lower bitrate
+            // Ensure any previous recording is fully stopped
+            this.stopRecording();
+
+            // Get microphone input at 16kHz
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                }
             });
 
-            this.setupRecorder(recorder, type);
-            this.streams.set(type, stream);
-            this.mediaRecorders.set(type, recorder);
-            this.chunks.set(type, []);
+            // Use the shared AudioContext from appState
+            if (!appState.audio.context) {
+                appState.audio.context = new (window.AudioContext || window.webkitAudioContext)();
+            }
 
-            recorder.start(100); // Record in smaller time slices
+            this.source = appState.audio.context.createMediaStreamSource(stream);
+            this.processorNode = appState.audio.context.createScriptProcessor(this.BUFFER_SIZE, 1, 1);
+
+            this.processorNode.onaudioprocess = (event) => {
+                if (!this.isRecording || appState.audio.isMicMuted) return;
+
+                const inputData = event.inputBuffer.getChannelData(0);
+                
+                // Convert to 24kHz using linear interpolation
+                const ratio = 24000 / appState.audio.context.sampleRate;
+                const newLength = Math.floor(inputData.length * ratio);
+                const resampledData = new Float32Array(newLength);
+
+                for (let i = 0; i < newLength; i++) {
+                    const position = i / ratio;
+                    const index = Math.floor(position);
+                    const fraction = position - index;
+                    
+                    const sample1 = inputData[index] || 0;
+                    const sample2 = inputData[Math.min(index + 1, inputData.length - 1)] || 0;
+                    
+                    resampledData[i] = sample1 + fraction * (sample2 - sample1);
+                }
+
+                // Append to buffer
+                const newBuffer = new Float32Array(this.audioBuffer.length + resampledData.length);
+                newBuffer.set(this.audioBuffer);
+                newBuffer.set(resampledData, this.audioBuffer.length);
+                this.audioBuffer = newBuffer;
+
+                // Only send when we have accumulated enough data and mic is not muted
+                if (this.audioBuffer.length >= 48000 && !appState.audio.isMicMuted) {
+                    // Convert to PCM16
+                    const pcmData = new Int16Array(this.audioBuffer.length);
+                    for (let i = 0; i < this.audioBuffer.length; i++) {
+                        const s = Math.max(-1, Math.min(1, this.audioBuffer[i]));
+                        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+
+                    // Convert to base64 string
+                    const base64Audio = btoa(String.fromCharCode.apply(null, new Uint8Array(pcmData.buffer)));
+
+                    // Only send if socket is ready and mic is not muted
+                    if (appState.audio.socket?.readyState === WebSocket.OPEN && !appState.audio.isMicMuted) {
+                        appState.audio.socket.send(JSON.stringify({
+                            event: 'message',
+                            type: 'audio',
+                            data: {
+                                audio: base64Audio,
+                                timestamp: Date.now(),
+                                format: 'pcm16',
+                                sampleRate: 24000
+                            }
+                        }));
+
+                        // Log occasionally
+                        if (Math.random() < 0.1) {
+                            console.log('Audio processed:', {
+                                inputSamples: inputData.length,
+                                outputSamples: pcmData.length,
+                                sampleRate: `${appState.audio.context.sampleRate}Hz -> 24kHz`,
+                                min: Math.min(...pcmData),
+                                max: Math.max(...pcmData)
+                            });
+                        }
+                    }
+
+                    // Reset buffer
+                    this.audioBuffer = new Float32Array(0);
+                }
+            };
+
+            this.source.connect(this.processorNode);
+            this.processorNode.connect(appState.audio.context.destination);
+            this.mediaStream = stream;
             this.isRecording = true;
+
+            console.log('Started recording at native sample rate, resampling to 24kHz');
             return true;
         } catch (error) {
-            logMessage(`Failed to start ${type} recording: ${error.message}`, 'error');
-            this.isRecording = false;
+            console.error('Failed to start recording:', error);
+            this.cleanup();
             return false;
         }
     }
 
-    stopRecording(type) {
-        const recorder = this.mediaRecorders.get(type);
-        const stream = this.streams.get(type);
+    stopRecording() {
+        this.isRecording = false;
+        this.cleanup();
+    }
+
+    cleanup() {
+        // Stop all tracks in the media stream
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach(track => {
+                track.stop();
+                this.mediaStream.removeTrack(track);
+            });
+        }
+
+        // Disconnect and cleanup audio nodes
+        if (this.source) {
+            this.source.disconnect();
+            this.source = null;
+        }
+
+        if (this.processorNode) {
+            this.processorNode.disconnect();
+            this.processorNode = null;
+        }
+
+        // Clear references
+        this.mediaStream = null;
+        this.audioBuffer = new Float32Array(0);
         
-        if (recorder && recorder.state !== 'inactive') {
-            recorder.stop();
-            stream.getTracks().forEach(track => track.stop());
-            this.mediaRecorders.delete(type);
-            this.streams.delete(type);
-            this.isRecording = false;
-        }
-    }
-
-    setupRecorder(recorder, type) {
-        recorder.ondataavailable = async (event) => {
-            this.chunks.get(type).push(event.data);
-            await this.queueUpload(type, event.data);
-        };
-
-        recorder.onstop = () => {
-            this.processRemainingChunks(type);
-        };
-    }
-
-    async queueUpload(type, data) {
-        appState.audio.uploadQueue.push({
-            type,
-            data,
-            timestamp: Date.now()
-        });
-
-        if (!appState.audio.isProcessingQueue) {
-            this.processUploadQueue();
-        }
-    }
-
-    async processUploadQueue() {
-        appState.audio.isProcessingQueue = true;
-        logMessage('Starting to process audio upload queue', 'debug');
-
-        while (appState.audio.uploadQueue.length > 0) {
-            const { type, data } = appState.audio.uploadQueue.shift();
-            logMessage(`Processing audio chunk: ${data.size} bytes`, 'debug');
-
-            if (appState.audio.socket && appState.audio.socket.readyState === WebSocket.OPEN && !appState.audio.isMicMuted) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    try {
-                        const buffer = reader.result;
-                        const base64 = btoa(
-                            new Uint8Array(buffer)
-                                .reduce((data, byte) => data + String.fromCharCode(byte), '')
-                        );
-
-                        const audioMessage = {
-                            type: 'audio',
-                            data: {
-                                audio: base64,
-                                timestamp: Date.now(),
-                                format: 'pcm16',
-                                sampleRate: 16000
-                            }
-                        };
-                        
-                        appState.audio.socket.send(JSON.stringify(audioMessage));
-                        logMessage('Audio chunk sent successfully', 'debug');
-                    } catch (error) {
-                        console.error('Audio processing error:', error);
-                        logMessage(`Error processing audio data: ${error.message}`, 'error');
-                    }
-                };
-                reader.readAsArrayBuffer(data);
-            }
-        }
-
-        appState.audio.isProcessingQueue = false;
-        logMessage('Finished processing audio upload queue', 'debug');
-    }
-
-    downsampleAudio(audioData) {
-        // Only send every other sample to reduce data size
-        const downsampled = new Int16Array(Math.floor(audioData.length / 2));
-        for (let i = 0; i < downsampled.length; i++) {
-            downsampled[i] = audioData[i * 2];
-        }
-        return downsampled;
-    }
-
-    getSupportedMimeType(type) {
-        const mimeTypes = [
-            'audio/webm;codecs=opus', // Prefer opus for better compression
-            'audio/webm',
-            'audio/ogg;codecs=opus',
-            'audio/wav'
-        ];
-
-        for (const mimeType of mimeTypes) {
-            if (MediaRecorder.isTypeSupported(mimeType)) {
-                return mimeType;
-            }
-        }
-
-        throw new Error('No supported mime type found for audio recording');
-    }
-
-    processRemainingChunks(type) {
-        const chunks = this.chunks.get(type);
-        if (chunks && chunks.length > 0) {
-            const blob = new Blob(chunks, { type: this.getSupportedMimeType(type) });
-            this.queueUpload(type, blob);
-            this.chunks.set(type, []);
-        }
+        // Log cleanup
+        console.log('Audio resources cleaned up');
     }
 }
 
@@ -280,11 +269,6 @@ async function initializeAudio() {
         if (!appState.audio.mediaHandler) {
             appState.audio.mediaHandler = new MediaHandler();
         }
-
-        // Initialize audio context for playback
-        appState.audio.context = new (window.AudioContext || window.webkitAudioContext)();
-        appState.audio.gainNode = appState.audio.context.createGain();
-        appState.audio.gainNode.connect(appState.audio.context.destination);
 
         logMessage('Audio system initialized successfully', 'info');
         return true;
@@ -381,14 +365,43 @@ function toggleMic() {
     appState.audio.isMicMuted = !appState.audio.isMicMuted;
     updateAudioStatus('mic', appState.audio.isMicMuted ? 'muted' : 'active');
     
+    logMessage(`Toggling mic: ${appState.audio.isMicMuted ? 'muted' : 'unmuted'}`, 'info');
+    
     if (!appState.audio.isMicMuted) {
         // Only start recording when unmuted
+        if (!appState.audio.mediaHandler) {
+            logMessage('Creating new MediaHandler', 'info');
+            appState.audio.mediaHandler = new MediaHandler();
+        }
+        
         if (!appState.audio.mediaHandler.isRecording) {
-            appState.audio.mediaHandler.startRecording('audio', { timeSlice: 4000 });
+            logMessage('Starting audio recording...', 'info');
+            appState.audio.mediaHandler.startRecording()
+                .then(success => {
+                    if (success) {
+                        logMessage('Audio recording started successfully', 'info');
+                    } else {
+                        logMessage('Failed to start audio recording', 'error');
+                        // Reset mic state if recording fails
+                        appState.audio.isMicMuted = true;
+                        updateAudioStatus('mic', 'muted');
+                    }
+                })
+                .catch(error => {
+                    logMessage(`Error starting audio recording: ${error.message}`, 'error');
+                    // Reset mic state on error
+                    appState.audio.isMicMuted = true;
+                    updateAudioStatus('mic', 'muted');
+                });
         }
     } else {
         // Stop recording when muted
-        appState.audio.mediaHandler.stopRecording('audio');
+        if (appState.audio.mediaHandler) {
+            logMessage('Stopping audio recording...', 'info');
+            appState.audio.mediaHandler.stopRecording();
+            // Clear the media handler to ensure complete cleanup
+            appState.audio.mediaHandler = null;
+        }
     }
 }
 
