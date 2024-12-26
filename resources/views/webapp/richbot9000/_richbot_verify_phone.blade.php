@@ -60,82 +60,49 @@
         e.preventDefault();
 
         const phoneCode = document.getElementById('phoneCodeInput').value;
-        console.log('Phone Code Input:', document.getElementById('phoneCodeInput'));
+
         if (!phoneCode) {
-            alert('Please enter the phone code.');
+            showAlert('Please enter the phone verification code.', 'warning');
             return;
         }
-        console.log('abut to verify sms');
+
         fetch('/api/verify-sms', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken, // Add token if needed
+                'Authorization': 'Bearer ' + appState.apiToken,
             },
             body: JSON.stringify({ token: phoneCode }),
         })
-            .then(response => {
-
-                console.log('response',response);
-
+        .then(response => {
+            if (response.status === 401) {
+                throw new Error('Unauthorized. Please log in again.');
+            }
+            return response.json().then(data => {
                 if (!response.ok) {
-                    throw new Error('Phone verification failed.');
+                    throw new Error(data.error || 'Phone verification failed.');
                 }
-                return response.json();
-            })
-            .then(data => {
-
-                console.log('data.user',data.user);
-                console.log('data.user',data.message);
-
-
-                if(data.user){
-
-              //      alert('returned a user.');
-                    if(data.user.email === appState.user.email){
-
-                  //      alert('Phone verified successfully.');
-                        // Optionally hide the card or update UI
-
-                        document.querySelector('.hidden_phone_verified').style.display = 'none';
-
-                        console.log('udated appstate user',data.user,appState.user)
-
-
-                        appState.user = data.user;
-                        localStorage.setItem('app_state', JSON.stringify(appState));
-
-                        console.log('udated appstate',appState.user)
-
-                        updateUserUI();
-
-                    }
-
-//Todo: do this all better through here
-
-                } else {
-
-                    alert('Invalid code. Please try again.');
-                }
-            })
-            .catch(error => {
-                console.error('Error verifying phone:', error);
-                alert('An error occurred. Please try again.' + error);
+                return data;
             });
+        })
+        .then(data => {
+            if (data.user) {
+                if (data.user.email === appState.user.email) {
+                    showAlert('Phone number verified successfully!', 'success');
+                    appState.user = data.user;
+                    localStorage.setItem('app_state', JSON.stringify(appState));
+                    updateUserUI();
+                }
+            } else {
+                throw new Error('Invalid response from server');
+            }
+        })
+        .catch(error => {
+            console.error('Error verifying phone:', error);
+            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
+        });
     });
-
-
-
-
-
-
-
-
-
-
-
-
 
     document.getElementById('verificationSMSForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -144,26 +111,28 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken, // Add token if needed
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json',
             }
         })
-            .then(response => {
+        .then(response => {
+            if (response.status === 401) {
+                throw new Error('Unauthorized. Please log in again.');
+            }
+            return response.json().then(data => {
                 if (!response.ok) {
-                    throw new Error('Failed to resend verification SMS.');
+                    throw new Error(data.error || 'Failed to resend verification SMS.');
                 }
-                return response.json();
-            })
-            .then(data => {
-                if (data.message) {
-                    alert('Verification SMS resent successfully.');
-                } else {
-                    alert('Failed to resend verification SMS.');
-                }
-            })
-            .catch(error => {
-                console.error('Error resending verification SMS:', error);
-                alert('An error occurred. Please try again.');
+                return data;
             });
+        })
+        .then(data => {
+            showAlert(data.message || 'Verification SMS sent successfully.', 'success');
+        })
+        .catch(error => {
+            console.error('Error resending verification SMS:', error);
+            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
+        });
     });
 
 </script>

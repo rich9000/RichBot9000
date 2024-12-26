@@ -86,7 +86,16 @@
                 appState.apiToken = response.data.token;
 
                 localStorage.setItem('app_state', JSON.stringify(appState));
-                location.reload();
+                
+                // Update UI before reload
+                updateUserUI();
+                showAlert('Login successful! Redirecting to dashboard...');
+                
+                // Small delay to ensure UI updates and alert shows
+                setTimeout(() => {
+                    showSection('richbotSection');
+                    location.reload();
+                }, 500);
 
             } catch (error) {
                 console.error('Login error:', error);

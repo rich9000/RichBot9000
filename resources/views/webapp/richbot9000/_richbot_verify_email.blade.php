@@ -49,7 +49,7 @@
         const emailCode = document.getElementById('emailCodeInput').value;
 
         if (!emailCode) {
-            alert('Please enter the email code.');
+            showAlert('Please enter the email verification code.', 'warning');
             return;
         }
 
@@ -58,35 +58,36 @@
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken, // Add token if needed
+                'Authorization': 'Bearer ' + appState.apiToken,
             },
             body: JSON.stringify({ token: emailCode }),
         })
         .then(response => {
-            if (!response.ok) {
-                throw new Error('Email verification failed.');
+            if (response.status === 401) {
+                throw new Error('Unauthorized. Please log in again.');
             }
-            return response.json();
+            return response.json().then(data => {
+                if (!response.ok) {
+                    throw new Error(data.error || 'Email verification failed.');
+                }
+                return data;
+            });
         })
         .then(data => {
             if (data.user) {
-
-                console.log('data user email check' + appState.user.email)
-
-
                 if (data.user.email === appState.user.email) {
-                    alert('Email verified successfully.');
+                    showAlert('Email verified successfully!', 'success');
                     appState.user = data.user;
                     localStorage.setItem('app_state', JSON.stringify(appState));
                     updateUserUI();
                 }
             } else {
-                alert('Invalid code. Please try again.');
+                throw new Error('Invalid response from server');
             }
         })
         .catch(error => {
             console.error('Error verifying email:', error);
-            alert('An error occurred. Please try again.' + error);
+            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
         });
     });
 
@@ -103,17 +104,26 @@
             }
         })
         .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to resend verification email.');
+            if (response.status === 401) {
+                throw new Error('Unauthorized. Please log in again.');
             }
-            return response.json();
+            return response.json().then(data => {
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to resend verification email.');
+                }
+                return data;
+            });
         })
         .then(data => {
-            alert('Verification email resent successfully.');
+            showAlert(data.message || 'Verification email sent successfully.', 'success');
+            // If token is provided in response, auto-fill the input
+            if (data.token) {
+                document.getElementById('emailCodeInput').value = data.token;
+            }
         })
         .catch(error => {
             console.error('Error resending verification email:', error);
-            alert('An error occurred. Please try again.');
+            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
         });
     });
 

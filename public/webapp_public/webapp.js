@@ -89,109 +89,90 @@ function showAlert(message, type = 'success') {
     }, 10000); // 10000ms = 10 seconds
 }
 const updateUserUI = () => {
+    // First, set everything to its logged-out state
+    showElementsByClass('hidden_richbot_logged_in');
+    hideElementsByClass('hidden_richbot_logged_out');
+    hideElementsByClass('hidden_email_verified');
+    hideElementsByClass('hidden_email_not_verified');
+    hideElementsByClass('hidden_phone_verified');
+    hideElementsByClass('hidden_phone_not_verified');
+    
+    // Clear all user-related text
+    setClassTextContent('richbot_user_name', '');
+    setClassTextContent('richbot_user_email', '');
+    setClassTextContent('richbot_user_phone_number', '');
 
-    if(appState.tokens.richbot){
+    // Hide all role-based menu items by default
+    document.querySelectorAll('[data-visible-role]').forEach(item => {
+        item.style.display = 'none';
+    });
 
-        if (appState.user) {
+    // Only update UI elements if user is logged in
+    if (appState.tokens.richbot && appState.user) {
+        // Show logged-in elements
+        hideElementsByClass('hidden_richbot_logged_in');
+        showElementsByClass('hidden_richbot_logged_out');
 
-            hideElementsByClass('hidden_richbot_logged_in');
-            showElementsByClass('hidden_richbot_logged_out');
-
-            console.log(appState.user.email_verified_at);
-            if(appState.user.email_verified_at){
-
-                hideElementsByClass('hidden_email_verified');
-                showElementsByClass('hidden_email_not_verified');
-
-            } else {
-
-                hideElementsByClass('hidden_email_not_verified');
-                showElementsByClass('hidden_email_verified');
-
-            }
-
-            console.log(appState.user.phone_verified_at);
-            if(appState.user.phone_verified_at){
-
-                hideElementsByClass('hidden_phone_verified');
-                showElementsByClass('hidden_phone_not_verified');
-
-            } else {
-
-                hideElementsByClass('hidden_phone_not_verified');
-                showElementsByClass('hidden_phone_verified');
-
-            }
-
-
-
-
-
-
-
-
-
-            setClassTextContent('richbot_user_name',appState.user.name);
-            setClassTextContent('richbot_user_email',appState.user.email);
-            setClassTextContent('richbot_user_phone_number',appState.user.phone_number);
-
-            populateServicesList();
-
+        // Handle email verification status
+        if (appState.user.email_verified_at) {
+            hideElementsByClass('hidden_email_verified');
+            showElementsByClass('hidden_email_not_verified');
+        } else {
+            showElementsByClass('hidden_email_verified');
+            hideElementsByClass('hidden_email_not_verified');
         }
 
+        // Handle phone verification status
+        if (appState.user.phone_verified_at) {
+            hideElementsByClass('hidden_phone_verified');
+            showElementsByClass('hidden_phone_not_verified');
+        } else {
+            showElementsByClass('hidden_phone_verified');
+            hideElementsByClass('hidden_phone_not_verified');
+        }
 
-    } else {
+        // Set user information
+        setClassTextContent('richbot_user_name', appState.user.name || '');
+        setClassTextContent('richbot_user_email', appState.user.email || '');
+        setClassTextContent('richbot_user_phone_number', appState.user.phone_number || '');
 
-        showElementsByClass('hidden_email_verified');
-
-
-        setClassTextContent('richbot_name','');
-        setClassTextContent('richbot_email','');
-
-        showElementsByClass('hidden_richbot_logged_in');
-        hideElementsByClass('hidden_richbot_logged_out');
-
+        // Show menu items based on user roles
+        if (appState.user.roles && Array.isArray(appState.user.roles)) {
+            const roleNames = appState.user.roles.map(role => role.name.toLowerCase());
+            document.querySelectorAll('[data-visible-role]').forEach(item => {
+                const requiredRole = item.getAttribute('data-visible-role').toLowerCase();
+                item.style.display = roleNames.includes(requiredRole) ? '' : 'none';
+            });
+        }
     }
 
+    // Update services list
+    populateServicesList();
 
-
-    if(appState.tokens.rainbow){
-
+    // Handle other service tokens
+    if (appState.tokens.rainbow) {
         hideElementsByClass('hidden_rainbow_dash_logged_in');
         showElementsByClass('hidden_rainbow_dash_logged_out');
-
     } else {
-
         showElementsByClass('hidden_rainbow_dash_logged_in');
         hideElementsByClass('hidden_rainbow_dash_logged_out');
-
     }
 
-    if(appState.tokens.bambooHR){
-
+    if (appState.tokens.bambooHR) {
         hideElementsByClass('hidden_bamboohr_logged_in');
         showElementsByClass('hidden_bamboohr_logged_out');
-
     } else {
-
-
         showElementsByClass('hidden_bamboohr_logged_in');
         hideElementsByClass('hidden_bamboohr_logged_out');
-
     }
 
-    if(appState.tokens.libreNMS){
-
+    if (appState.tokens.libreNMS) {
         hideElementsByClass('hidden_librenms_logged_in');
         showElementsByClass('hidden_librenms_logged_out');
     } else {
         showElementsByClass('hidden_librenms_logged_in');
         hideElementsByClass('hidden_librenms_logged_out');
-
     }
-
-    setupMenuForRoles(appState.user.roles);
-
 };
 
 // Function to load and display the file tree with checkboxes
@@ -761,22 +742,16 @@ function createAndLoadSection(view, targetId = 'dynamic_content_section',desc = 
 
 
 
-function setupMenuForRoles(roles) {
-
-    const roleNames = roles.map(role => role.name.toLowerCase());
+function setupMenuForRoles(roles = []) {
+    const roleNames = (roles || []).map(role => role.name.toLowerCase());
 
     // Show/hide menu items based on roles
     document.querySelectorAll('[data-visible-role]').forEach(item => {
-
         const requiredRole = item.getAttribute('data-visible-role').toLowerCase();
-
-        console.log(item,roleNames,requiredRole);
-
         if (!roleNames.includes(requiredRole)) {
-
-            console.log('it does not include!',requiredRole);
-
             item.style.display = 'none';
+        } else {
+            item.style.display = '';
         }
     });
 }
@@ -818,38 +793,18 @@ function capitalizeFirstLetter(string) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-
-
     const saved_state = localStorage.getItem('app_state');
-
     appState = {};
-
-
-  //  alert('checking saved state');
 
     console.log('saved state', saved_state);
 
     if (!saved_state || saved_state === "null" || saved_state === "undefined") {
-        //if(!saved_state){
-
-
-        let appState = {
-
-        };
-
-
-
-        console.log('making new appstate')
-       // alert('making new appState');
-
         appState = {
-
             apiToken: null,
             user: null,
             audio: null,
             socket: null,
             data: {},
-
             ollama_model: null,
             ollama_conversation: null,
             ollama_assistant: null,
@@ -857,21 +812,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ollama_messages: [],
             conversations: [],
             current_conversation: null,
-
             current_id: null,
             current_coding_session_id: null,
             coding_sessions: [],
-
             richbot: null,
             dashUser: null,
             dashApiToken: null,
             users: [],
-            current_thread: null, // Holds the current active thread
-            current_assistant: null, // Holds the current active assistant
-            threads: [], // List of all threads
+            current_thread: null,
+            current_assistant: null,
+            threads: [],
             debug: false,
             current_content_section: 'publicContent',
-            openSections: [], // Array to track open sections            
+            openSections: [],
             tokens: {
                 richbot: null,
                 rainbow: null,
@@ -881,94 +834,56 @@ document.addEventListener('DOMContentLoaded', () => {
             },
         };
         localStorage.setItem('app_state', JSON.stringify(appState));
-
-        window.location.reload();
-
-   //     console.log('new appstate' , appState);
-
     } else {
-
         appState = JSON.parse(saved_state);
-
-
     }
 
+    // Initialize App
+    loadAllData();
+    updateUserUI();
+    
+    // If user is logged in, show dashboard, otherwise show login
+    if (appState.tokens.richbot && appState.user) {
+        updateUserUI();
+        setupMenuForRoles(appState.user.roles || []);
+        showSection('richbotSection');
+    } else {
+        showSection('richbotLoginSection');
+    }
 
+    if (!appState.openSections) {
+        appState.openSections = [];
+    }
+    updateOpenTabsMenu();
 
-
-
-     /// Event listener for dynamic content loading and section showing
+    // Event listener for dynamic content loading and section showing
     document.querySelectorAll('.nav-content-loader').forEach(loader => {
         loader.addEventListener('click', function(e) {
-
             e.preventDefault();
             const view = this.getAttribute('data-view');
             const targetId = this.getAttribute('data-section') || 'dynamic_content_section';
 
-            const method = 'GET';
-            const url = `/api/content/${view}`;
-
-            console.log(view, targetId);
-
             // Check if the target element exists, if not, create it
             let targetElement = document.getElementById(targetId);
-
-            console.log(targetElement);
-
-            const headers = {
-                'Accept': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken,
-                'Content-Type': 'application/json'
-            };
-
-            const options = {
-                method: method,
-                headers: headers,
-            };
-
-            // If the method is POST, PUT, or PATCH, we add the body to the request
-            if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-                options.body = JSON.stringify(data);
-            }
-
-            fetch(url, options)
-                .then(response => {
-                    if (!response.ok) {
-                        // Convert non-2xx HTTP responses into errors
-                        return response.json().then(errorData => {
-                            reject(errorData);
-                        });
-                    }
-                    return response.json();
-                })
+            
+            ajaxRequest(`/api/content/${view}`)
                 .then(data => {
-
-                    //alert(data);
-
-
-                    console.log('response data',data);
-
-
-
-                    if(targetElement){
-
+                    if(targetElement) {
                         targetElement.remove();
-
                     }
                     targetElement = document.createElement('div');
                     targetElement.id = targetId;
                     targetElement.classList.add('content-section');
-
 
                     targetElement.innerHTML = data.content;
                     document.getElementById('main-container').appendChild(targetElement);
                     showSection(targetId);
 
                     extractAndInjectScripts(data.content);
-
                 })
                 .catch(error => {
-
+                    console.error('Error loading content:', error);
+                    showAlert('Error loading content. Please try again.', 'danger');
                 });
 
             // Remove active class from all section showers
@@ -980,7 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Event Listeners
+    // Event Listeners for section toggling
     document.querySelectorAll('.nav-section-toggler').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -988,116 +903,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showSection(sectionId);
         });
     });
-
-
-    // Rainbow Dashboard Login Form Submission
-    document.getElementById('rainbowLoginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('rainbowEmail').value;
-        const password = document.getElementById('rainbowPassword').value;
-
-        try {
-            // Replace with actual API endpoint
-            const response = await axios.post('https://dash.rainbowtel.net/api/login', { email, password });
-            appState.tokens.rainbow = response.data.token;
-            localStorage.setItem('app_state', JSON.stringify(appState));
-
-            location.reload();
-
-            //showAlert('Logged in to Rainbow Dashboard successfully!');
-            //showSection('bambooSection');
-        } catch (error) {
-            console.error(error);
-            showAlert('Failed to login to Rainbow Dashboard. Please check your credentials.', 'danger');
-        }
-    });
-
-
-
-    // BambooHR Token Form Submission
-    document.getElementById('bambooTokenForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const token = document.getElementById('bambooToken').value;
-
-
-            const date = new Date();
-            date.setDate(date.getDate() - 30); // Subtract 30 days from today
-            start = date.toISOString().split('T')[0]; // Format as 'YYYY-MM-DD'
-
-
-            date.setDate(date.getDate() + 14); // Add 14 days (2 weeks) to today
-            end = date.toISOString().split('T')[0]; // Format as 'YYYY-MM-DD'
-
-        //Basic MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4
-
-        const base_token = btoa(token + ':x');
-
-        console.log(base_token, 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4');
-
-        if(base_token != 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4'){
-
-            alert('base token bad ' + base_token + " != 'MmJmOWMzYTcyMWFmNGUzN2FmNDc2ZGE4ZTFhODY2ZmZkMDc2YmY4Nzp4'");
-
-        }
-
-
-
-
-// Example GET Request
-        axios.get('/api/proxy/bamboohr/v1/company_information', {
-            headers: {
-                'Authorization': 'Bearer '+ appState.tokens.richbot,
-                'Accept': 'application/json',
-                // Add more headers as needed
-            },
-            params: {
-                apikey: token,
-
-            }
-        })
-            .then(response => {
-
-                appState.tokens.bambooHR = token;
-                localStorage.setItem('app_state', JSON.stringify(appState));
-
-                console.log(response.data);
-                showAlert('BambooHR token uploaded successfully!');
-                showSection('profileSection');
-                updateUserUI();
-
-
-                console.log(appState);
-
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-
-
-
-    });
-
-
-
-    console.log('loaded appstate at the end: ',appState);
-
-    // Initialize App
-
-    loadAllData();
-    showSection('richbotSection');
-
-
-    updateUserUI( );
-    setupMenuForRoles(appState.user.roles);
-
-    if (!appState.openSections) {
-        appState.openSections = [];
-    }
-    updateOpenTabsMenu();
-    //window.location.reload();
-
-
 });
+
 document.addEventListener('DOMContentLoaded', function() {
 
 

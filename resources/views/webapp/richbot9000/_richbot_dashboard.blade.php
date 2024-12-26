@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const initDashboard = () => {
         if (typeof appState === 'undefined' || !appState.apiToken) {
             console.log('Waiting for appState to be initialized...');
-            setTimeout(initDashboard, 1000); // Retry after 500ms
+            setTimeout(initDashboard, 5000); // Retry after 500ms
             return;
         }
         

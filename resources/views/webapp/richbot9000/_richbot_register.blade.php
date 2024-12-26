@@ -149,35 +149,33 @@
                             return response.json();
                         })
                         .then(async data => {
-
-
-
-
-
-
                             const email = document.getElementById('register-email').value;
                             const password = document.getElementById('register-password').value;
 
-                            console.log('registered going to try to login');
-                            console.log(email,password);
+                            try {
+                                const response = await axios.post('/api/login', { email, password });
+                                appState.user = response.data.user;
+                                if(!appState.user.roles) appState.user.roles = [];
+                                appState.tokens.richbot = response.data.token;
+                                appState.apiToken = response.data.token;
 
+                                // Save state before reload
+                                localStorage.setItem('app_state', JSON.stringify(appState));
+                                
+                                // Update UI before reload
+                                updateUserUI();
+                                showAlert('Registration successful! Redirecting to dashboard...');
+                                
+                                // Small delay to ensure UI updates and alert shows
+                                setTimeout(() => {
+                                    showSection('richbotSection');
+                                    location.reload();
+                                }, 500);
 
-                            // Replace with actual API endpoint
-                            const response = await axios.post('/api/login', { email, password });
-                            appState.user = response.data.user;
-                           // appState.richbot.user = response.data.user;
-                            appState.tokens.richbot = response.data.token;
-
-                            localStorage.setItem('app_state', JSON.stringify(appState));
-                            //showAlert('Logged in to Richbot 9000 successfully!');
-
-                            location.reload();
-
-                            //updateUserUI();
-
-
-
-                            //showSection('rainbowSection');
+                            } catch (error) {
+                                console.error('Login error after registration:', error);
+                                showAlert('Registration successful but login failed. Please try logging in manually.', 'warning');
+                            }
                         })
                         .catch(error => {
                             if (error.errors) {

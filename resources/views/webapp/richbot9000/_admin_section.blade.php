@@ -1,127 +1,100 @@
 <div class="row mb-2 hidden_not_admin" >
     <div class="col-md-12 col-lg-12 hidden_not_admin">
         <div class="card hidden_not_admin">
-            <div class="card-header bg-light">
+            <div class="card-header bg-dark border-bottom-0 p-0">
                 <ul class="nav nav-tabs card-header-tabs" id="adminTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="admin-overview-tab" data-bs-toggle="tab" data-bs-target="#adminOverview" type="button" role="tab" aria-controls="overview" aria-selected="true">Admin Overview</button>
+                        <button class="nav-link text-white px-4 py-3" id="admin-overview-tab" data-bs-toggle="tab" data-bs-target="#adminOverview" type="button" role="tab" aria-controls="overview" aria-selected="false">
+                            <i class="fas fa-tachometer-alt me-2"></i>Overview
+                        </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="false">Users</button>
+                        <button class="nav-link text-white active px-4 py-3" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">
+                            <i class="fas fa-users me-2"></i>Users
+                        </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" type="button" role="tab" aria-controls="events" aria-selected="false">Events</button>
+                        <button class="nav-link text-white px-4 py-3" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" type="button" role="tab" aria-controls="events" aria-selected="false">
+                            <i class="fas fa-calendar-alt me-2"></i>Events
+                        </button>
                     </li>
                 </ul>
             </div>
-            <div class="card-body">
-                <div class="tab-content" id="adminTabsContent">
-                    <div class="tab-pane fade show active" id="adminOverview" role="tabpanel" aria-labelledby="admin-overview-tab">
-                       test test
+            <div class="card-body pt-0">
+                <div class="tab-content border-top pt-4" id="adminTabsContent">
+                    <div class="tab-pane fade" id="adminOverview" role="tabpanel" aria-labelledby="admin-overview-tab">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h4>Admin Overview</h4>
+                                <p>Welcome to the admin dashboard overview.</p>
+                            </div>
+                        </div>
                     </div>
 
-
-                    <div class="tab-pane fade" id="users" role="tabpanel" aria-labelledby="users-tab">
+                    <div class="tab-pane fade show active" id="users" role="tabpanel" aria-labelledby="users-tab">
                         @include('webapp.richbot9000._admin_users')
                     </div>
 
-                    <script>
-
-                     
-
-                        $(document).ready(function() {
-
-                            alert('this is a test');
-
-                        });
-                       
-                        document.addEventListener('click', function(event) {
-                            if (event.target.classList.contains('more-info-btn')) {
-                                const userId = event.target.getAttribute('data-user-id');
-                                const userName = event.target.getAttribute('data-user-name');
-                                loadUserProfile(userId, userName);
-                            }
-                        });
-
-                        function loadUserProfile(userId, userName) {
-                            const adminTabs = document.getElementById('adminTabs');
-                            const adminTabsContent = document.getElementById('adminTabsContent');
-
-                            if (!document.getElementById(`user-tab-${userId}`)) {
-                                const tabItem = document.createElement('li');
-                                tabItem.classList.add('nav-item');
-                                tabItem.innerHTML = `
-                                    <button class="nav-link" id="user-tab-${userId}" data-bs-toggle="tab" data-bs-target="#user-content-${userId}" type="button" role="tab" aria-controls="user-content-${userId}" aria-selected="false">
-                                        User Admin: ${userName} <span class="ms-2 close-tab" data-user-id="${userId}">&times;</span>
-                                    </button>
-                                `;
-                                adminTabs.appendChild(tabItem);
-
-                                const tabContent = document.createElement('div');
-                                tabContent.classList.add('tab-pane', 'fade');
-                                tabContent.setAttribute('id', `user-content-${userId}`);
-                                tabContent.setAttribute('role', 'tabpanel');
-                                tabContent.setAttribute('aria-labelledby', `user-tab-${userId}`);
-                                tabContent.innerHTML = `<div id="user-profile-${userId}" class="p-3">Loading profile...</div>`;
-                                adminTabsContent.appendChild(tabContent);
-
-                                ajaxRequest(`/api/users/${userId}`)
-                                 
-                                    .then(user => {
-                                        const profileHtml = `
-                                        <h4>Profile of ${user.name}</h4>
-                                        <p><strong>Email:</strong> ${user.email}</p>
-                                        <p><strong>Phone:</strong> ${user.phone_number || 'N/A'}</p>
-                                        <p><strong>Roles:</strong> ${user.roles.map(role => role.name).join(', ')}</p>
-                                        <p><strong>Address:</strong> ${user.address || 'N/A'}</p>
-                                        <p><strong>Date of Birth:</strong> ${user.dob || 'N/A'}</p>
-                                    `;
-                                        document.getElementById(`user-profile-${userId}`).innerHTML = profileHtml;
-                                    })
-                                    .catch(err => {
-                                        document.getElementById(`user-profile-${userId}`).innerHTML = '<p class="text-danger">Error loading profile.</p>' + err.message;
-                                    });
-                            }
-
-                            document.querySelector(`#user-tab-${userId}`).click();
-                        }
-
-                        document.addEventListener('click', function(event) {
-                            if (event.target.classList.contains('close-tab')) {
-                                const userId = event.target.getAttribute('data-user-id');
-                                document.getElementById(`user-tab-${userId}`).parentElement.remove();
-                                document.getElementById(`user-content-${userId}`).remove();
-                                document.getElementById('admin-overview-tab').click();
-                            }
-                        });
-
-                      //  document.getElementById('loadEventsButton').addEventListener('click', loadEventsDataTables);
-
-                        function loadEventsDataTables() {
-                            console.log('Loading events...');
-                            // Add your logic to load events data here
-                            const table = document.getElementById('eventLogsTable');
-                            fetch(`${apiUrl}/eventlogs`, {
-                                headers: {
-                                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                                    'Accept': 'application/json'
-                                }
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    table.querySelector('tbody').innerHTML = data.map(event => `
-                                    <tr>
-                                        <td>${event.event_type}</td>
-                                        <td>${event.description}</td>
-                                        <td>${event.user.name || 'N/A'}</td>
-                                        <td>${new Date(event.created_at).toLocaleString()}</td>
-                                    </tr>
-                                `).join('');
-                                });
-                        }
-                    </script>
+                    <div class="tab-pane fade" id="events" role="tabpanel" aria-labelledby="events-tab">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <h4>Events Log</h4>
+                                <p>Event tracking and monitoring will be displayed here.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Custom tab styling */
+    .nav-tabs {
+        border-bottom: 0;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        font-weight: 500;
+        position: relative;
+        transition: all 0.2s ease;
+        background: transparent;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border: none;
+        background: rgba(255,255,255,0.1);
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #fff !important;
+        background: rgba(255,255,255,0.2);
+        border: none;
+    }
+
+    .nav-tabs .nav-link.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background-color: #fff;
+    }
+
+    /* Add subtle shadow to card */
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    /* Improve tab content spacing */
+    .tab-content {
+        background: #fff;
+    }
+
+    .tab-pane {
+        padding: 1rem 0;
+    }
+</style>
