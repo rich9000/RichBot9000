@@ -120,6 +120,16 @@ class MediaHandler {
 
     async startRecording() {
         try {
+            // Check if we're in a secure context
+            if (!window.isSecureContext) {
+                throw new Error('Media devices require a secure context (HTTPS or localhost). Please use HTTPS or access via localhost.');
+            }
+
+            // Check if mediaDevices is available
+            if (!navigator.mediaDevices) {
+                throw new Error('Media devices are not available in this browser. Please ensure you are using HTTPS or localhost.');
+            }
+
             // Ensure any previous recording is fully stopped
             this.stopRecording();
 
@@ -582,6 +592,9 @@ function sendMessage() {
     const message = input.value.trim();
     
     if (message && appState.audio.socket?.readyState === WebSocket.OPEN) {
+        // Stop any playing audio first
+        stopAllAudio();
+        
         const messageData = {
             type: 'text',
             data: {
@@ -1201,8 +1214,17 @@ function handleMessage(event) {
                 handleConversationUpdate(data.data);
                 break;
 
+
+            case 'function_call_output':
+                handleFunctionCallOutput(data.data);
+                break;
+
+            case 'function_call':
+                handleFunctionCall(data.data);
+                break;
+
             default:
-                console.log('Unhandled message type:', data.type);
+                console.log('Unhandled message type:', data.type,data);
                 break;
         }
     } catch (error) {
@@ -1337,10 +1359,27 @@ function handleResponseComplete(data) {
         // Enable play button for complete audio
         if (audioBuffers.has(data.response_id)) {
             const playButton = container.querySelector('.play-button');
-            if (playButton) {
+            const stopButton = container.querySelector('.stop-button');
+            if (playButton && stopButton) {
+                playButton.classList.remove('d-none');
+                stopButton.classList.remove('d-none');
+                
                 playButton.onclick = () => {
+                    // Stop any other playing audio first
+                    stopAllAudio();
+                    
+                    // Update button states
+                    playButton.classList.remove('btn-outline-secondary');
+                    playButton.classList.add('btn-success');
+                    playButton.querySelector('i').className = 'fas fa-pause';
+                    stopButton.classList.remove('d-none');
+                    
                     const audioChunks = audioBuffers.get(data.response_id);
                     audioChunks.forEach(chunk => playAudioMessage(chunk));
+                };
+                
+                stopButton.onclick = () => {
+                    stopAllAudio();
                 };
             }
         }
@@ -1494,9 +1533,13 @@ function createMessageContainer(responseId) {
             <div class="message-content">
                 <div class="message-text mb-2"></div>
                 <div class="transcript-area" style="font-style: italic; color: #666;"></div>
+                <div class="function-calls-area"></div>
                 <div class="audio-container d-flex align-items-center mt-2">
                     <button class="btn btn-sm btn-outline-secondary me-2 d-none play-button">
                         <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger me-2 d-none stop-button">
+                        <i class="fas fa-stop"></i>
                     </button>
                     <div class="audio-status small text-muted"></div>
                 </div>
@@ -1558,6 +1601,153 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+function stopAllAudio() {
+    // Stop any currently playing audio
+    if (appState.audio.playbackQueue.length > 0) {
+        appState.audio.playbackQueue = [];
+    }
+    if (appState.audio.isPlaying) {
+        if (appState.audio.context) {
+            appState.audio.context.close().then(() => {
+                appState.audio.context = new (window.AudioContext || window.webkitAudioContext)();
+                appState.audio.gainNode = appState.audio.context.createGain();
+                appState.audio.gainNode.connect(appState.audio.context.destination);
+            });
+        }
+        appState.audio.isPlaying = false;
+    }
+    
+    // Reset all play/stop buttons
+    document.querySelectorAll('.play-button').forEach(button => {
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-secondary');
+        button.querySelector('i').className = 'fas fa-play';
+    });
+    document.querySelectorAll('.stop-button').forEach(button => {
+        button.classList.add('d-none');
+    });
+}
+
+function handleFunctionCall(data) {
+    const container = document.querySelector(`[data-response-id="${data.response_id}"]`) || createMessageContainer(data.response_id);
+    const functionCallsArea = container.querySelector('.function-calls-area');
+    
+    const functionCallElement = document.createElement('div');
+    functionCallElement.className = 'function-call-container mt-2 p-2 border rounded';
+    
+    // Format the function call details
+    const functionName = data.name;
+    const args = JSON.stringify(data.arguments, null, 2);
+    const result = JSON.stringify(data.result, null, 2);
+    
+    functionCallElement.innerHTML = `
+        <div class="function-call-header d-flex align-items-center" style="cursor: pointer;" onclick="toggleFunctionDetails(this)">
+            <i class="fas fa-code me-2"></i>
+            <span class="function-name">${functionName}</span>
+            <i class="fas fa-chevron-down ms-auto"></i>
+        </div>
+        <div class="function-details mt-2" style="display: none;">
+            <div class="arguments mb-2">
+                <div class="text-muted small">Arguments:</div>
+                <pre class="bg-light p-2 rounded"><code>${args}</code></pre>
+            </div>
+            <div class="result">
+                <div class="text-muted small">Result:</div>
+                <pre class="bg-light p-2 rounded"><code>${result}</code></pre>
+            </div>
+        </div>
+    `;
+    
+    functionCallsArea.appendChild(functionCallElement);
+    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function handleFunctionCallOutput(data) {
+    const container = document.querySelector(`[data-response-id="${data.response_id}"]`) || createMessageContainer(data.response_id);
+    const functionCallsArea = container.querySelector('.function-calls-area');
+    
+    const functionCallElement = document.createElement('div');
+    functionCallElement.className = 'function-call-container mt-2 p-2 border rounded';
+    
+    // Format the function call details
+    const functionName = data.name;
+    const args = JSON.stringify(data.arguments, null, 2);
+    const result = JSON.stringify(data.result, null, 2);
+    
+    functionCallElement.innerHTML = `
+        <div class="function-call-header d-flex align-items-center" style="cursor: pointer;" onclick="toggleFunctionDetails(this)">
+            <i class="fas fa-code me-2"></i>
+            <span class="function-name">${functionName}</span>
+            <i class="fas fa-chevron-down ms-auto"></i>
+        </div>
+        <div class="function-details mt-2" style="display: none;">
+            <div class="arguments mb-2">
+                <div class="text-muted small">Arguments:</div>
+                <pre class="bg-light p-2 rounded"><code>${args}</code></pre>
+            </div>
+            <div class="result">
+                <div class="text-muted small">Result:</div>
+                <pre class="bg-light p-2 rounded"><code>${result}</code></pre>
+            </div>
+        </div>
+    `;
+    
+    functionCallsArea.appendChild(functionCallElement);
+    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function toggleFunctionDetails(header) {
+    const details = header.nextElementSibling;
+    const chevron = header.querySelector('.fa-chevron-down');
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        chevron.style.transform = 'rotate(180deg)';
+    } else {
+        details.style.display = 'none';
+        chevron.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Add to the existing style block
+const additionalStyles = `
+    .function-call-container {
+        background-color: #f8f9fa;
+        transition: all 0.2s ease;
+    }
+    
+    .function-call-container:hover {
+        background-color: #e9ecef;
+    }
+    
+    .function-call-header {
+        padding: 8px;
+        user-select: none;
+    }
+    
+    .function-call-header i {
+        transition: transform 0.2s ease;
+    }
+    
+    .function-name {
+        font-family: monospace;
+        color: #0d6efd;
+    }
+    
+    .function-details pre {
+        margin: 0;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .function-details code {
+        font-size: 0.85em;
+    }
+`;
+
+// Append the new styles
+document.head.appendChild(document.createElement('style')).textContent += additionalStyles;
 </script>
 
 <style>

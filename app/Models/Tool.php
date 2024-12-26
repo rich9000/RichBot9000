@@ -33,6 +33,10 @@ class Tool extends Model
         return $this->hasMany(Parameter::class);
     }
 
+    public function toolParameters()
+    {
+        return $this->hasMany(Parameter::class);
+    }
 
     public function parameters()
     {

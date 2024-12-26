@@ -10,8 +10,8 @@ use Ratchet\Client\WebSocket;
 
 class TestWebsocket extends Command
 {
-    protected $signature = 'websocket:test {--token=}';
-    protected $description = 'Test WebSocket connections';
+    protected $signature = 'websocket:test {action=test} {--token=} {--assistant-id=}';
+    protected $description = 'Test WebSocket connections and assistant configurations. Actions: test, list, formats';
     
     private $currentChatId = null;
     private $loop;
@@ -19,6 +19,196 @@ class TestWebsocket extends Command
     private $openaiConn = null;
 
     public function handle()
+    {
+        $action = $this->argument('action');
+
+        if ($action === 'help' || !$action) {
+            $this->showHelp();
+            return 0;
+        }
+
+        switch ($action) {
+            case 'test':
+                $this->testWebsocketConnection();
+                break;
+            case 'list':
+                $this->listAssistants();
+                break;
+            case 'formats':
+                $this->showFormats();
+                break;
+            default:
+                $this->error("Unknown action: $action");
+                $this->showHelp();
+                return 1;
+        }
+    }
+
+    private function showHelp()
+    {
+        $this->info("=== WebSocket Test Command ===\n");
+        $this->info("Available actions:");
+        $this->line("  test     - Test WebSocket connections");
+        $this->line("            Options:");
+        $this->line("            --token=<token>  API token for authentication");
+        $this->line("\n  list     - List all available assistants");
+        $this->line("\n  formats  - Show different API formats for an assistant");
+        $this->line("            Options:");
+        $this->line("            --assistant-id=<id>  ID of the assistant to show formats for");
+        $this->line("\nExamples:");
+        $this->line("  php artisan websocket:test");
+        $this->line("  php artisan websocket:test test --token=your_token");
+        $this->line("  php artisan websocket:test list");
+        $this->line("  php artisan websocket:test formats --assistant-id=1");
+    }
+
+    private function listAssistants()
+    {
+        $this->info("=== Listing Assistants ===\n");
+        
+        $assistants = \App\Models\Assistant::with(['tools', 'model'])->get();
+        
+        foreach ($assistants as $assistant) {
+
+
+            $this->info("\nAssistant ID: {$assistant->id}");
+            $this->info("Name: {$assistant->name}");
+          if($assistant->model){
+            $model_name = is_string($assistant->model) ? $assistant->model : ($assistant->model ? $assistant->model->name : 'gpt-4');
+            $this->info("Model: ".$model_name);
+          }
+
+
+
+
+            $this->info("Tools: " . $assistant->tools->pluck('name')->join(', '));
+            $this->info("System Message: " . substr($assistant->system_message, 0, 100) . "...");
+            $this->info(str_repeat('-', 50));
+        }
+    }
+
+    
+
+    private function showFormats()
+    {
+        $this->info("=== Showing API Formats ===\n");
+        
+        $assistantId = $this->option('assistant-id');
+        if (!$assistantId) {
+            $this->error("Please provide --assistant-id option");
+            return;
+        }
+
+        $assistant = \App\Models\Assistant::with(['tools', 'model'])->find($assistantId);
+        if (!$assistant) {
+            $this->error("Assistant not found");
+            return;
+        }
+
+        // Get model name consistently
+        $modelName = is_string($assistant->model) ? $assistant->model : 
+            ($assistant->model ? $assistant->model->name : 'gpt-4');
+
+        // Format 1: ChatGPT Assistant Format
+        $gptAssistantFormat = [
+            'openapi' => '3.1.0',
+            'info' => [
+                'title' => $assistant->name,
+                'description' => $assistant->system_message,
+                'version' => '1.0.0'
+            ],
+            'servers' => [
+                [
+                    'url' => config('app.url'),
+                    'description' => 'Production server'
+                ]
+            ],
+            'paths' => $assistant->tools->mapWithKeys(function($tool) {
+                $path = "/api/" . str_replace('_', '/', $tool->name);
+                
+                $parameters = [];
+                $requestBody = null;
+                
+                if ($tool->toolParameters && $tool->toolParameters->count() > 0) {
+                    foreach ($tool->toolParameters as $param) {
+                        if ($tool->method === 'get') {
+                            $parameters[] = [
+                                'name' => $param->name,
+                                'in' => 'query',
+                                'schema' => [
+                                    'type' => $param->type,
+                                    'description' => $param->description
+                                ],
+                                'required' => $param->required
+                            ];
+                        } else {
+                            $requestBody = [
+                                'content' => [
+                                    'application/json' => [
+                                        'schema' => [
+                                            'type' => 'object',
+                                            'properties' => [
+                                                $param->name => [
+                                                    'type' => $param->type,
+                                                    'description' => $param->description
+                                                ]
+                                            ],
+                                            'required' => $tool->toolParameters->where('required', true)->pluck('name')->toArray()
+                                        ]
+                                    ]
+                                ]
+                            ];
+                        }
+                    }
+                }
+
+                return [$path => [
+                    strtolower($tool->method ?? 'post') => [
+                        'summary' => $tool->description,
+                        'operationId' => $tool->name,
+                        'parameters' => $parameters,
+                        'requestBody' => $requestBody,
+                        'responses' => [
+                            '200' => [
+                                'description' => 'Successful operation'
+                            ],
+                            '400' => [
+                                'description' => 'Validation error'
+                            ]
+                        ]
+                    ]
+                ]];
+            })->toArray()
+        ];
+
+        // Format 2: OpenAI API Format
+        $apiFormat = [
+            'model' => $modelName,
+            'messages' => [
+                ['role' => 'system', 'content' => $assistant->system_message]
+            ],
+            'tools' => $assistant->generateTools()->toArray(),
+            'tool_choice' => 'auto'
+        ];
+
+        // Format 3: OpenAI Realtime Format
+        $realtimeFormat = [
+            'type' => 'session.update',
+            'event_id' => 'event_' . uniqid(),
+            'session' => $assistant->getRealtimeAssistantSession()
+        ];
+
+        $this->info("\nGPT Assistant Format:");
+        $this->line(json_encode($gptAssistantFormat, JSON_PRETTY_PRINT));
+
+        $this->info("\nOpenAI API Format:");
+        $this->line(json_encode($apiFormat, JSON_PRETTY_PRINT));
+
+        $this->info("\nOpenAI Realtime Format:");
+        $this->line(json_encode($realtimeFormat, JSON_PRETTY_PRINT));
+    }
+
+    private function testWebsocketConnection()
     {
         $this->info("=== WebSocket Test ===\n");
         

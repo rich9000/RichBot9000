@@ -43,12 +43,12 @@ let processorNode = null;
 let audioBuffer = ''; // For collecting audio deltas
 let isOpenAIConnected = false;
 let isResponseActive = false;
-const BUFFER_SIZE = 2048;
+const BUFFER_SIZE = 4096;
 const TARGET_SAMPLE_RATE = 24000;
 let sharedAudioContext = null;  // Add this for shared context
 
 // Add rate limiting constants
-const AUDIO_CHUNK_INTERVAL = 100; // Send audio every 100ms
+const AUDIO_CHUNK_INTERVAL = 10; // Reduced from previous value
 let lastAudioSendTime = 0;
 let audioQueue = [];
 
@@ -425,47 +425,62 @@ function resample(audioData, fromSampleRate, toSampleRate) {
 // Update startRecording
 async function startRecording() {
     try {
-        const audioContext = await getAudioContext();
-        console.log('Audio Context Sample Rate:', audioContext.sampleRate);
-        
-        mediaStream = await navigator.mediaDevices.getUserMedia({
+        // Start capturing audio at 24kHz
+        const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
+                sampleRate: TARGET_SAMPLE_RATE,
                 channelCount: 1,
                 echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: false
+                noiseSuppression: true
             }
         });
 
-        const input = audioContext.createMediaStreamSource(mediaStream);
-        processorNode = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+        const audioContext = new AudioContext({sampleRate: TARGET_SAMPLE_RATE});
+        const source = audioContext.createMediaStreamSource(stream);
+        const processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
 
-        processorNode.onaudioprocess = (event) => {
+        processor.onaudioprocess = (event) => {
             if (!socket || !socketReady || !isOpenAIConnected) return;
 
             try {
-                const inputData = event.inputBuffer.getChannelData(0);
-                if (!inputData || inputData.length === 0) {
-                    console.warn('Empty input buffer');
-                    return;
-                }
+                const audioData = event.inputBuffer.getChannelData(0);
+                const pcmData = convertFloat32ToPCM16(audioData);
+                const base64Audio = btoa(String.fromCharCode.apply(null, new Uint8Array(pcmData.buffer)));
 
-                // Always resample to ensure 24kHz
-                const resampledData = createResampledBuffer(audioContext, inputData, TARGET_SAMPLE_RATE);
-                if (resampledData && resampledData.length > 0) {
-                    sendAudioMessage(resampledData);
-                } else {
-                    console.warn('Resampling produced empty data');
+                const audioMessage = {
+                    event: 'message',
+                    type: 'audio',
+                    audio: base64Audio,
+                    sampleRate: TARGET_SAMPLE_RATE
+                };
+
+                socket.send(JSON.stringify(audioMessage));
+
+                // Log occasionally for debugging
+                if (Math.random() < 0.01) {
+                    console.log('Audio sent:', {
+                        bufferSize: BUFFER_SIZE,
+                        pcmLength: pcmData.length,
+                        base64Length: base64Audio.length,
+                        sampleRate: TARGET_SAMPLE_RATE
+                    });
                 }
             } catch (error) {
                 console.error('Audio processing error:', error);
             }
         };
 
-        input.connect(processorNode);
-        processorNode.connect(audioContext.destination);
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+        mediaStream = stream;
+        processorNode = processor;
         isStreaming = true;
-        console.log('Started audio streaming with sample rate:', audioContext.sampleRate);
+        
+        console.log('Started audio streaming:', {
+            contextSampleRate: audioContext.sampleRate,
+            bufferSize: BUFFER_SIZE,
+            targetSampleRate: TARGET_SAMPLE_RATE
+        });
 
     } catch (error) {
         console.error('Failed to start recording:', error);
@@ -500,13 +515,13 @@ function appendTranscript(text) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-function convertFloat32ToPCM16(float32Array) {
-    const pcmData = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32Array[i]));
-        pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+function convertFloat32ToPCM16(float32Data) {
+    const pcm16Data = new Int16Array(float32Data.length);
+    for (let i = 0; i < float32Data.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Data[i]));
+        pcm16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
-    return pcmData;
+    return pcm16Data;
 }
 
 function toggleMicrophone() {

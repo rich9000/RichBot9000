@@ -20,6 +20,7 @@
         https://maps.googleapis.com
         https://cdn.jsdelivr.net
         wss://richbot9000.com:9501
+        wss://richbot9000.local:9501
         https://api.richbot9000.com
         https://notify.richbot9000.com
         http://richbot9000.local:9501

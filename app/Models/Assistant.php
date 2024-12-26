@@ -69,6 +69,77 @@ class Assistant extends Model
         return json_encode($this->generateTools());
     }
 
+    public function getRealtimeAssistantTools(){
+        return $this->tools->map(function($tool) {
+            // Create a simpler, flattened parameter structure
+            $parameters = [
+                'type' => 'object',
+                'properties' => [],
+                'required' => []
+            ];
+
+            if ($tool->relationLoaded('toolParameters') || $tool->toolParameters) {
+                foreach ($tool->toolParameters as $param) {
+                    // Ensure description is never null
+                    $description = $param->description;
+                    if (empty($description)) {
+                        // Generate a default description based on the parameter name
+                        $description = "The " . str_replace('_', ' ', $param->name) . " parameter";
+                    }
+
+                    $parameters['properties'][$param->name] = [
+                        'type' => $param->type ?: 'string', // Default to string if type is null
+                        'description' => $description
+                    ];
+                    
+                    if ($param->required) {
+                        $parameters['required'][] = $param->name;
+                    }
+                }
+            }
+
+            // Ensure tool description is never null
+            $toolDescription = $tool->description;
+            if (empty($toolDescription)) {
+                $toolDescription = "Tool to " . str_replace('_', ' ', $tool->name);
+            }
+
+            // Create the tool structure - note the removal of the nested 'function' object
+            return [
+                'type' => 'function',
+                'name' => $tool->name,
+                'description' => $toolDescription,
+                'parameters' => $parameters
+            ];
+        })->toArray();
+    }
+
+    public function getRealtimeAssistantSession()
+    {
+        $modelName = is_string($this->model) ? $this->model : 
+            ($this->model ? $this->model->name : 'gpt-4');
+
+        return [
+            
+            'instructions' => $this->system_message,
+            //'model' => $modelName,          
+            'tools' => $this->getRealtimeAssistantTools(),
+
+        ];
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public function generateTools()
     {
