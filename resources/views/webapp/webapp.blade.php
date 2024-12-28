@@ -30,7 +30,7 @@
         http://localhost:9501
         ws://richbot9000.local:9501
         ws://localhost:9501;
-    media-src 'self' blob:;
+    media-src 'self' data: blob:;
     frame-src 'self'
         https://js.stripe.com
         https://hooks.stripe.com;
@@ -351,8 +351,15 @@
                         <div class="dropdown-menu border-0 shadow-sm">
                             <div class="dropdown-header">Tools</div>
                             <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._prompt" data-section="assistants-prompt-section">
-                                <i class="fas fa-robot me-2"></i>Assistants
+                                <i class="fas fa-robot me-2"></i>Assistants Prompt
                             </a>
+                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._client" data-section="assistants-client-section">
+                                <i class="fas fa-robot me-2"></i>Assistants Client 
+                            </a>
+                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.websocket._client" data-section="websocket-client-section">
+                                <i class="fas fa-robot me-2"></i>WebSocket Client 
+                            </a>
+
                             <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.cronbot._index" data-section="cronbots-section">
                                 <i class="fas fa-clock me-2"></i>CronBots
                             </a>
