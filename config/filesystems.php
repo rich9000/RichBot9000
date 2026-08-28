@@ -35,12 +35,22 @@ return [
             'root' => storage_path('app'),
             'throw' => false,
         ],
+
         'richbot_sandbox' => [
             'driver' => 'local',
-            'root' => '/var/www/html/richbot9000.com',
+            'root' => env('RICHBOT_SANDBOX_PATH', '/var/www/html/richbot9000.com'),
             'throw' => false,
             'links' => 'skip',
         ],
+
+        'file_action' => [
+            'driver' => 'local',
+            'root' => env('FILE_ACTION_PATH', '/var/www/html/richbot9000.com/storage/app/file_action'),
+            'throw' => false,
+            'read_only' => true,
+            'links' => 'skip',
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

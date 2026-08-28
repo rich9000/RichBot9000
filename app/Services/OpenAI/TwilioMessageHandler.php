@@ -5,10 +5,13 @@ namespace App\Services\OpenAI;
 use Illuminate\Support\Facades\Log;
 use App\Services\Logging\TwilioLogger;
 
+
 class TwilioMessageHandler
 {
     private $streamSid;
     private $chatId;
+
+
 
     public function __construct($chatId, $streamSid = null)
     {
@@ -92,6 +95,11 @@ class TwilioMessageHandler
         // Handle raw media message from Twilio
         if (isset($message['media']) && isset($message['media']['payload'])) {
             $audioBytes = base64_decode($message['media']['payload']);
+
+
+
+
+
             
             $converted = [
                 'type' => 'input_audio_buffer.append',

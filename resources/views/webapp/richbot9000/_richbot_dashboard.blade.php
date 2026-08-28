@@ -1,42 +1,146 @@
 <div class="container-fluid py-4">
-    
-<!-- Welcome Card -->
-    <div class="card mb-4 ">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0"><i class="fas fa-tachometer-alt"></i> RichBot 9000 Dashboard</h4>
+    <div class="row">
+
+
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">RichBot 9000 Dashboard</h5>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <!-- Quick Stats -->
-                <div class="col-md-3 mb-3">
-                    <div class="card bg-light">
-                        <div class="card-body text-center">
-                            <h5><i class="fas fa-robot"></i> Active Assistants</h5>
-                            <h2 class="mb-0" id="activeAssistantsCount">0</h2>
-                        </div>
-                    </div>
+    </div>
+
+
+
+
+
+
+
+        <!-- Main Dashboard Card -->
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-tachometer-alt"></i> RichBot 9000 Dashboard</h4>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card bg-light">
-                        <div class="card-body text-center">
-                            <h5><i class="fas fa-clock"></i> Active Cronbots</h5>
-                            <h2 class="mb-0" id="activeCronbotsCount">0</h2>
+                <div class="card-body">
+
+
+                
+
+
+
+
+                    <div class="row hidden_richbot_dashboard">
+                        <!-- First Column -->
+                        <div class="col-md-6">
+                            <!-- Active Assistants Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.assistants._index" data-section="assistants_content_section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-robot"></i> Active Assistants</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="activeAssistantsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Active Cronbots Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.cronbot._index" data-section="cronbots-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-clock"></i> Active Cronbots</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="activeCronbotsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Available Tools Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.tools._index" data-section="ollama-tools-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-tools"></i> Available Tools</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="toolsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Total Chats Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.openai._prompt" data-section="chat_content_section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-comments"></i> Total Chats</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="totalChatsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card bg-light">
-                        <div class="card-body text-center">
-                            <h5><i class="fas fa-tools"></i> Available Tools</h5>
-                            <h2 class="mb-0" id="toolsCount">0</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card bg-light">
-                        <div class="card-body text-center">
-                            <h5><i class="fas fa-comments"></i> Total Chats</h5>
-                            <h2 class="mb-0" id="totalChatsCount">0</h2>
+
+                        <!-- Second Column -->
+                        <div class="col-md-6">
+                            <!-- Contacts Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.contacts._index" data-section="contacts-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-address-book"></i> Contacts</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="contactsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Integrations Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.integrations._index" data-section="integrations-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-plug"></i> Integrations</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="integrationsCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Surveys Row -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.survey._index" data-section="surveys-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-file-code"></i> Surveys</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="surveysCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Pipelines Row -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <a href="#" class="nav-content-loader text-decoration-none" data-view="webapp.pipelines._index" data-section="assistant-pipelines-section">
+                                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded hover-shadow">
+                                            <div>
+                                                <h5 class="mb-0"><i class="fas fa-project-diagram"></i> Pipelines</h5>
+                                            </div>
+                                            <h2 class="mb-0" id="pipelinesCount">0</h2>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -44,36 +148,78 @@
         </div>
     </div>
 
-    <div class="row hidden_richbot_logged_out">
-        <!-- Quick Actions -->
-        <div class="col-md-4 ">
+    <!-- Upcoming Scheduled Tasks -->
+    <div class="row">
+        <div class="col-md-12">
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-bolt"></i> Quick Actions</h5>
+                    <h5 class="mb-0"><i class="fas fa-calendar"></i> Upcoming Scheduled Tasks</h5>
                 </div>
                 <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="#" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> New Assistant
-                        </a>
-                        <a href="#" class="btn btn-success">
-                            <i class="fas fa-clock"></i> Schedule Cronbot
-                        </a>
-                        <a href="#" class="btn btn-info">
-                            <i class="fas fa-comments"></i> Start Chat
-                        </a>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Assistant</th>
+                                    <th>Task</th>
+                                    <th>Next Run</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="upcomingCronbots">
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Recent Activity -->
-        <div class="col-md-8">
+    <!-- Remote Richbots -->
+    <div class="row">
+        <div class="col-md-12">
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Activity</h5>
+                    <h5 class="mb-0"><i class="fas fa-server"></i> Remote Richbots</h5>
                 </div>
                 <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Last Seen</th>
+                                    <th>IP Address</th>
+                                    <th>Version</th>
+                                    <th>OS</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="remoteRichbots">
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleActivitySection()">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> Recent Activity 
+                        <span id="activityCount" class="badge bg-secondary ms-2">0</span>
+                    </h5>
+                    <i class="fas fa-chevron-down" id="activityToggleIcon"></i>
+                </div>
+                <div class="card-body" id="activityBody" style="display: none;">
                     <div id="recentActivity">
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -92,31 +238,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Upcoming Cronbots -->
-    <div class="card mb-4  hidden_richbot_logged_out">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-calendar"></i> Upcoming Scheduled Tasks</h5>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Assistant</th>
-                            <th>Task</th>
-                            <th>Next Run</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="upcomingCronbots">
-                        <!-- Will be populated by JavaScript -->
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
@@ -145,11 +266,6 @@
 <script>
 
 async function loadDashboardStats() {
-
-
-console.log('appstate',appState);
-
-
     try {
         const response = await fetch('/api/dashboard/stats', {
             headers: {
@@ -162,16 +278,37 @@ console.log('appstate',appState);
         
         const stats = await response.json();
         
-        // Update stats with animation
+        // Update all stats with animation
         animateCounter('activeAssistantsCount', stats.activeAssistants || 0);
         animateCounter('activeCronbotsCount', stats.activeCronbots || 0);
         animateCounter('toolsCount', stats.availableTools || 0);
         animateCounter('totalChatsCount', stats.totalChats || 0);
+        animateCounter('contactsCount', stats.contacts || 0);
+        animateCounter('integrationsCount', stats.integrations || 0);
+        animateCounter('surveysCount', stats.surveys || 0);
+        animateCounter('pipelinesCount', stats.pipelines || 0);
     } catch (error) {
         console.error('Error loading dashboard stats:', error);
-        ['activeAssistantsCount', 'activeCronbotsCount', 'toolsCount', 'totalChatsCount'].forEach(id => {
+        ['activeAssistantsCount', 'activeCronbotsCount', 'toolsCount', 'totalChatsCount', 
+         'contactsCount', 'integrationsCount', 'surveysCount', 'pipelinesCount'].forEach(id => {
             document.getElementById(id).innerHTML = '<i class="fas fa-exclamation-circle text-danger"></i>';
         });
+    }
+}
+
+let lastActivityCount = 0;
+
+function toggleActivitySection() {
+    const body = document.getElementById('activityBody');
+    const icon = document.getElementById('activityToggleIcon');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    } else {
+        body.style.display = 'none';
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
     }
 }
 
@@ -187,6 +324,21 @@ async function loadRecentActivity() {
         if (!response.ok) throw new Error('Failed to load activity');
         
         const activities = await response.json();
+        
+        // Update activity count
+        const activityCount = activities.length;
+        const countBadge = document.getElementById('activityCount');
+        countBadge.textContent = activityCount;
+        
+        // Check if there are new activities
+        if (activityCount > lastActivityCount) {
+            countBadge.classList.remove('bg-secondary');
+            countBadge.classList.add('bg-danger');
+        } else {
+            countBadge.classList.remove('bg-danger');
+            countBadge.classList.add('bg-secondary');
+        }
+        lastActivityCount = activityCount;
         
         const activityLog = document.getElementById('activityLog');
         if (activities.length === 0) {
@@ -266,6 +418,56 @@ async function loadUpcomingCronbots() {
     }
 }
 
+async function loadRemoteRichbots() {
+    try {
+        const response = await fetch('/api/dashboard/remote-richbots', {
+            headers: {
+                'Authorization': `Bearer ${appState.apiToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) throw new Error('Failed to load remote richbots');
+        
+        const richbots = await response.json();
+        
+        const richbotsList = document.getElementById('remoteRichbots');
+        if (richbots.length === 0) {
+            richbotsList.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        <i class="fas fa-server"></i> No active remote richbots
+                    </td>
+                </tr>`;
+            return;
+        }
+        
+        richbotsList.innerHTML = richbots.map(richbot => `
+            <tr>
+                <td>${richbot.name}</td>
+                <td><span class="badge bg-${getStatusColor(richbot.status)}">${richbot.status}</span></td>
+                <td>${richbot.last_seen}</td>
+                <td>${richbot.ip_address}</td>
+                <td>${richbot.version}</td>
+                <td>${richbot.os}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="manageRichbot(${richbot.id})">
+                        <i class="fas fa-cog"></i> Manage
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading remote richbots:', error);
+        document.getElementById('remoteRichbots').innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-danger">
+                    <i class="fas fa-exclamation-circle"></i> Failed to load remote richbots
+                </td>
+            </tr>`;
+    }
+}
+
 // Animate counter function for stats
 function animateCounter(elementId, finalValue) {
     const element = document.getElementById(elementId);
@@ -334,6 +536,7 @@ async function triggerCronbot(cronbotId) {
         loadDashboardStats();
         loadRecentActivity();
         loadUpcomingCronbots();
+        loadRemoteRichbots();
         
         // Show success message
         alert('Cronbot triggered successfully!');
@@ -342,31 +545,55 @@ async function triggerCronbot(cronbotId) {
         alert('Failed to trigger cronbot. Please try again.');
     }
 }
-document.addEventListener('DOMContentLoaded', function() {
-    const initDashboard = () => {
-        if (typeof appState === 'undefined' || !appState.apiToken) {
-            console.log('Waiting for appState to be initialized...');
-            setTimeout(initDashboard, 5000); // Retry after 500ms
+
+
+
+
+    // Wait for all other scripts to load
+    window.addEventListener('load', function() {
+        // Additional delay to ensure all other DOM events have fired
+        setTimeout(function() {
+            // Your weather test initialization code here
+           
+            console.log('Weather test initialized after all other scripts');
+
+
+            const initDashboard = () => {
+        // If not logged in, don't initialize dashboard
+        if (!appState?.tokens?.richbot || !appState?.user) {
+            console.log('User not logged in, skipping dashboard initialization');
             return;
         }
-        
-        console.log('AppState ready, initializing dashboard...');
-        // Load initial data
-        loadDashboardStats();
-        loadRecentActivity();
-        loadUpcomingCronbots();
-        
-        // Set up auto-refresh every 30 seconds
-        setInterval(() => {
+
+        // If we have the token, initialize immediately
+        if (appState.apiToken) {
+            console.log('AppState ready, initializing dashboard...');
+            // Load initial data
             loadDashboardStats();
             loadRecentActivity();
             loadUpcomingCronbots();
-        }, 30000);
+            loadRemoteRichbots();
+            
+            // Set up auto-refresh every 30 seconds
+            setInterval(() => {
+                loadDashboardStats();
+                loadRecentActivity();
+                loadUpcomingCronbots();
+                loadRemoteRichbots();
+            }, 30000);
+            return;
+        }
+
+        // If we don't have the token yet, wait once and try again
+        console.log('Waiting for appState to be initialized...');
+        setTimeout(initDashboard, 100);
     };
 
     // Start initialization process
     initDashboard();
-});
 
 
+
+        }, 100);
+    });
 </script>

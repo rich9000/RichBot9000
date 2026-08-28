@@ -21,12 +21,35 @@
                 <div class="modal-body">
                     <input type="hidden" id="cronbotId" name="id" value="">
 
-                    <!-- Assistant Selection -->
+                    <!-- Type Selection -->
                     <div class="mb-3">
-                        <label for="assistantId" class="form-label">Select Assistant</label>
-                        <select id="assistantId" name="assistant_id" class="form-select" required>
+                        <label for="cronbotType" class="form-label">Type</label>
+                        <select id="cronbotType" name="type" class="form-select" required onchange="toggleTypeFields()">
+                            <option value="assistant">Assistant</option>
+                            <option value="conversation_path">Conversation Path</option>
+                        </select>
+                    </div>
+
+                    <!-- Assistant Selection -->
+                    <div class="mb-3" id="assistantField">
+                        <label for="cronbotAssistantId" class="form-label">Select Assistant</label>
+                        <select id="cronbotAssistantId" name="assistant_id" class="form-select">
                             <option value="">Choose an Assistant</option>
                         </select>
+                    </div>
+
+                    <!-- Conversation Path Selection -->
+                    <div class="mb-3" id="conversationPathField" style="display: none;">
+                        <label for="cronbotConversationPathId" class="form-label">Select Conversation Path</label>
+                        <select id="cronbotConversationPathId" name="conversation_path_id" class="form-select">
+                            <option value="">Choose a Conversation Path</option>
+                        </select>
+                    </div>
+
+                    <!-- Active Checkbox -->
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="isActive" name="is_active" checked>
+                        <label for="isActive" class="form-check-label">Active</label>
                     </div>
 
                     <!-- Prompt -->
@@ -99,6 +122,21 @@
     const apiEndpoint = '/api/scheduled-cronbots';
     const bearerToken = appState.apiToken;
 
+    console.log('=== CRONBOT SCRIPT INITIALIZATION ===');
+    console.log('appState:', appState);
+    console.log('appState.data:', appState.data);
+    console.log('appState.data.assistants:', appState.data.assistants);
+    console.log('appState.data.tools:', appState.data.tools);
+    console.log('bearerToken:', bearerToken);
+
+    // Debug function to manually populate dropdowns
+    window.debugPopulateDropdowns = function() {
+        console.log('=== MANUAL DROPDOWN POPULATION DEBUG ===');
+        populateCronbotAssistantDropdown();
+        populateToolDropdowns();
+        populateConversationPathsDropdown();
+    };
+
     // Load cronbots and render in the table
     async function loadCronbots() {
         const cronbotList = document.getElementById('cronbot-list');
@@ -124,12 +162,13 @@
               <tr>
                 <th>#</th>
                 <th>Assistant</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Active</th>
                 <th>Prompt</th>
-                <th>Interval</th>
                 <th>Schedule</th>
                 <th>Next Run</th>
                 <th>Last Run</th>
-                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -137,13 +176,14 @@
               ${data.map((cronbot, index) => `
                 <tr>
                   <td>${index + 1}</td>
-                  <td>${getAssistantName(cronbot.assistant_id)}</td>
+                  <td>${getCronbotName(cronbot)}</td>
+                  <td><span class="badge bg-info">${cronbot.type || 'assistant'}</span></td>
+                  <td>${cronbot.status === 'enabled' ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}</td>
+                  <td>${cronbot.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>'}</td>
                   <td>${cronbot.prompt}</td>
-                  <td>${cronbot.is_repeating ? cronbot.repeat_interval : 'One-time'}</td>
                   <td><code>${cronbot.schedule || 'N/A'}</code></td>
                   <td>${formatDateTime(cronbot.next_run_at)}</td>
                   <td>${formatDateTime(cronbot.last_run_at) || 'Never'}</td>
-                  <td>${cronbot.is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>'}</td>
                   <td>
                     <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#cronbotModal" onclick="editCronbot(${cronbot.id})">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteCronbot(${cronbot.id})">Delete</button>
@@ -159,15 +199,19 @@
         }
     }
     function editCronbot(cronbotId) {
+        console.log('=== editCronbot START ===');
         console.log('Editing cronbot:', cronbotId); // Debug
         const modalTitle = document.getElementById('cronbotModalLabel');
         const cronbotForm = document.getElementById('cronbotForm');
 
+        console.log('About to populate dropdowns...');
         // Load dropdowns first
         Promise.all([
             populateCronbotAssistantDropdown(),
-            populateToolDropdowns()
+            populateToolDropdowns(),
+            populateConversationPathsDropdown()
         ]).then(() => {
+            console.log('Dropdowns populated successfully, now fetching cronbot data...');
             // Then fetch and populate cronbot data
             fetch(`${apiEndpoint}/${cronbotId}`, {
                 method: 'GET',
@@ -181,10 +225,14 @@
                 console.log('Loaded cronbot data:', cronbot); // Debug
                 modalTitle.textContent = 'Edit Cronbot';
                 document.getElementById('cronbotId').value = cronbot.id;
-                document.getElementById('assistantId').value = cronbot.assistant_id || '';
+                document.getElementById('cronbotType').value = cronbot.type || 'assistant';
+                document.getElementById('cronbotAssistantId').value = cronbot.assistant_id || '';
+                document.getElementById('cronbotConversationPathId').value = cronbot.conversation_path_id || '';
+                document.getElementById('isActive').checked = cronbot.is_active !== false;
                 document.getElementById('prompt').value = cronbot.prompt;
                 document.getElementById('isRepeating').checked = cronbot.is_repeating;
                 toggleRepeatFields();
+                toggleTypeFields(); // Set the correct field visibility
                 if (cronbot.is_repeating) {
                     document.getElementById('repeatInterval').value = cronbot.repeat_interval || '';
                 }
@@ -193,26 +241,41 @@
                 document.getElementById('failToolId').value = cronbot.fail_tool_id || '';
                 document.getElementById('successToolId').value = cronbot.success_tool_id || '';
                 document.getElementById('pauseToolId').value = cronbot.pause_tool_id || '';
+                console.log('=== editCronbot END ===');
             })
             .catch(error => {
                 console.error('Failed to fetch cronbot details:', error);
                 alert('Error loading cronbot data');
             });
+        }).catch(error => {
+            console.error('Error populating dropdowns:', error);
         });
     }
 
     function addCronbot() {
+        console.log('=== addCronbot START ===');
         const modalTitle = document.getElementById('cronbotModalLabel');
         const cronbotForm = document.getElementById('cronbotForm');
         
+        console.log('appState.data.assistants', appState.data.assistants);
+        console.log('appState.data.tools', appState.data.tools);
+        console.log('assistantpoplulated');
+        
+        console.log('About to populate dropdowns...');
         Promise.all([
             populateCronbotAssistantDropdown(),
-            populateToolDropdowns()
+            populateToolDropdowns(),
+            populateConversationPathsDropdown()
         ]).then(() => {
+            console.log('Dropdowns populated successfully');
             modalTitle.textContent = 'Create Cronbot';
             cronbotForm.reset();
             document.getElementById('cronbotId').value = '';
             toggleRepeatFields();
+            toggleTypeFields(); // Set initial field visibility
+            console.log('=== addCronbot END ===');
+        }).catch(error => {
+            console.error('Error populating dropdowns:', error);
         });
     }
 
@@ -223,7 +286,10 @@
         const id = formData.get('id');
         const data = {
             prompt: formData.get('prompt'),
-            assistant_id: formData.get('assistant_id'),
+            type: formData.get('type'),
+            assistant_id: formData.get('type') === 'assistant' ? formData.get('assistant_id') : null,
+            conversation_path_id: formData.get('type') === 'conversation_path' ? formData.get('conversation_path_id') : null,
+            is_active: document.getElementById('isActive').checked,
             is_repeating: document.getElementById('isRepeating').checked,
             repeat_interval: formData.get('repeat_interval'),
             start_time: formatDatetimeForServer(formData.get('start_time')),
@@ -296,17 +362,47 @@ function formatDatetimeForServer(datetime) {
 
     // Populate assistant dropdown
     function populateCronbotAssistantDropdown() {
-        const assistantSelect = document.getElementById('assistantId');
-        assistantSelect.innerHTML = '<option value="">Choose an Assistant</option>'; // Reset options
+        console.log('=== populateCronbotAssistantDropdown START ===');
+        console.log('appState.data.assistants', appState.data.assistants);
+        console.log('appState.data.assistants length:', appState.data.assistants ? appState.data.assistants.length : 'undefined');
 
-        appState.data.assistants.forEach(assistant => {
-            if (assistant.type === 'cron') {
+        const assistantSelect = document.getElementById('cronbotAssistantId');
+        console.log('assistantSelect element found:', assistantSelect);
+        
+        if (!assistantSelect) {
+            console.error('ERROR: cronbotAssistantId element not found!');
+            return;
+        }
+
+        assistantSelect.innerHTML = '<option value="">Choose an Assistant</option>'; // Reset options
+        console.log('Reset dropdown options');
+
+        if (!appState.data.assistants || !Array.isArray(appState.data.assistants)) {
+            console.error('ERROR: appState.data.assistants is not an array or is undefined');
+            console.log('appState.data:', appState.data);
+            return;
+        }
+
+        let cronAssistantsCount = 0;
+        appState.data.assistants.forEach((assistant, index) => {
+            console.log(`Assistant ${index}:`, assistant);
+            console.log(`Assistant ${index} type:`, assistant.type);
+            console.log(`Assistant ${index} type === 'cron':`, assistant.type === 'cron');
+            
+            if (assistant.type === 'cron' || assistant.type === 'Cron' || assistant.type.toLowerCase() === 'assistant') {
+                cronAssistantsCount++;
                 const option = document.createElement('option');
                 option.value = assistant.id;
                 option.textContent = assistant.name;
-                assistantSelect.appendChild(option); 
+                assistantSelect.appendChild(option);
+                console.log(`Added cron assistant: ${assistant.name} (ID: ${assistant.id})`);
             }
         });
+
+        console.log(`Total assistants processed: ${appState.data.assistants.length}`);
+        console.log(`Cron assistants found: ${cronAssistantsCount}`);
+        console.log('Final dropdown options count:', assistantSelect.options.length);
+        console.log('=== populateCronbotAssistantDropdown END ===');
     }
     // Toggle visibility of repeat interval fields based on the repeating checkbox
     function toggleRepeatFields() {
@@ -317,16 +413,34 @@ function formatDatetimeForServer(datetime) {
 
     // Populate tool dropdowns
     function populateToolDropdowns() {
+        console.log('=== populateToolDropdowns START ===');
+        console.log('appState.data.tools:', appState.data.tools);
+        console.log('appState.data.tools length:', appState.data.tools ? appState.data.tools.length : 'undefined');
+
         const failToolSelect = document.getElementById('failToolId');
         const successToolSelect = document.getElementById('successToolId');
         const pauseToolSelect = document.getElementById('pauseToolId');
+
+        console.log('Tool select elements found:', {
+            failToolSelect: failToolSelect,
+            successToolSelect: successToolSelect,
+            pauseToolSelect: pauseToolSelect
+        });
 
         // Clear existing options
         [failToolSelect, successToolSelect, pauseToolSelect].forEach(select => {
             select.innerHTML = '<option value="">None</option>';
         });
+        console.log('Cleared tool dropdowns');
 
-        appState.data.tools.forEach(tool => {
+        if (!appState.data.tools || !Array.isArray(appState.data.tools)) {
+            console.error('ERROR: appState.data.tools is not an array or is undefined');
+            return;
+        }
+
+        let toolsAdded = 0;
+        appState.data.tools.forEach((tool, index) => {
+            console.log(`Tool ${index}:`, tool);
             const option = document.createElement('option');
             option.value = tool.id;
             option.textContent = tool.name;
@@ -334,7 +448,16 @@ function formatDatetimeForServer(datetime) {
             failToolSelect.appendChild(option.cloneNode(true));
             successToolSelect.appendChild(option.cloneNode(true));
             pauseToolSelect.appendChild(option.cloneNode(true));
+            toolsAdded++;
         });
+
+        console.log(`Tools added to dropdowns: ${toolsAdded}`);
+        console.log('Final tool dropdown options count:', {
+            failTool: failToolSelect.options.length,
+            successTool: successToolSelect.options.length,
+            pauseTool: pauseToolSelect.options.length
+        });
+        console.log('=== populateToolDropdowns END ===');
     }
 
     function formatDatetimeForInput(datetime) {
@@ -344,9 +467,15 @@ function formatDatetimeForServer(datetime) {
     }
 
     // Add helper functions
-    function getAssistantName(assistantId) {
-        const assistant = appState.data.assistants.find(a => a.id === assistantId);
-        return assistant ? assistant.name : 'Unknown';
+    function getCronbotName(cronbot) {
+        if (cronbot.type === 'assistant') {
+            const assistant = appState.data.assistants.find(a => a.id === cronbot.assistant_id);
+            return assistant ? assistant.name : 'Unknown';
+        } else if (cronbot.type === 'conversation_path') {
+            const conversationPath = appState.data.conversationPaths.find(p => p.id === cronbot.conversation_path_id);
+            return conversationPath ? conversationPath.name : 'Unknown';
+        }
+        return 'Unknown';
     }
 
     function formatDateTime(datetime) {
@@ -374,6 +503,73 @@ function formatDatetimeForServer(datetime) {
             console.error('Error triggering cronbot:', error);
             alert('Failed to trigger cronbot');
         }
+    }
+
+    // Toggle fields based on type selection
+    function toggleTypeFields() {
+        const type = document.getElementById('cronbotType').value;
+        const assistantField = document.getElementById('assistantField');
+        const conversationPathField = document.getElementById('conversationPathField');
+        
+        if (type === 'assistant') {
+            assistantField.style.display = 'block';
+            conversationPathField.style.display = 'none';
+            document.getElementById('cronbotAssistantId').required = true;
+            document.getElementById('cronbotConversationPathId').required = false;
+        } else if (type === 'conversation_path') {
+            assistantField.style.display = 'none';
+            conversationPathField.style.display = 'block';
+            document.getElementById('cronbotAssistantId').required = false;
+            document.getElementById('cronbotConversationPathId').required = true;
+        }
+    }
+
+    // Populate conversation paths dropdown
+    async function populateConversationPathsDropdown() {
+        console.log('=== populateConversationPathsDropdown START ===');
+        
+        const conversationPathSelect = document.getElementById('cronbotConversationPathId');
+        if (!conversationPathSelect) {
+            console.error('ERROR: cronbotConversationPathId element not found!');
+            return;
+        }
+
+        conversationPathSelect.innerHTML = '<option value="">Choose a Conversation Path</option>';
+
+        try {
+            const response = await fetch('/api/conversation-paths', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${bearerToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const conversationPaths = await response.json();
+            console.log('Conversation paths loaded:', conversationPaths);
+
+            // Store conversation paths in appState for use in getCronbotName
+            if (!appState.data) appState.data = {};
+            appState.data.conversationPaths = conversationPaths;
+
+            conversationPaths.forEach(path => {
+                const option = document.createElement('option');
+                option.value = path.id;
+                option.textContent = path.name || `Path ${path.id}`;
+                conversationPathSelect.appendChild(option);
+            });
+
+            console.log(`Conversation paths added: ${conversationPaths.length}`);
+        } catch (error) {
+            console.error('Error loading conversation paths:', error);
+            conversationPathSelect.innerHTML = '<option value="">Error loading conversation paths</option>';
+        }
+        
+        console.log('=== populateConversationPathsDropdown END ===');
     }
 
     // Load cronbots on page load

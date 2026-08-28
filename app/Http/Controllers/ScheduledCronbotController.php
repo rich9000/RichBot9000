@@ -6,6 +6,9 @@ namespace App\Http\Controllers;
 use App\Models\ScheduledCronbot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+
 
 class ScheduledCronbotController extends Controller
 {
@@ -25,13 +28,24 @@ class ScheduledCronbotController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
             'prompt' => 'required|string',
             'assistant_id' => 'required|exists:assistants,id',
-
+            'tools' => 'nullable|array',
+            'tools.*.id' => 'required|exists:tools,id',
+            'tools.*.name' => 'required|string',
+            'tools.*.parameters' => 'nullable|array',
+            
+            // Scheduling fields
             'is_repeating' => 'required|boolean',
-            'repeat_interval' => 'nullable|string|in:hourly,twice_daily,daily,weekly,monthly',
-            'start_time' => 'required|date',
-            'end_time' => 'nullable|date|after:start_time',
+            'is_active' => 'boolean',
+            'schedule' => 'nullable|string',
+            'next_run_at' => 'required|date',
+            'end_at' => 'nullable|date|after:next_run_at',
+            'scheduling_metadata' => 'nullable|array',
+            
+            // Legacy fields (keeping for backward compatibility)
             'fail_tool_id' => 'nullable|exists:tools,id',
             'success_tool_id' => 'nullable|exists:tools,id',
             'pause_tool_id' => 'nullable|exists:tools,id',
@@ -39,25 +53,23 @@ class ScheduledCronbotController extends Controller
 
         $user = $request->user();
 
-        // Generate the cron expression if repeating
-        $schedule = null;
-        if ($validated['is_repeating'] && $validated['repeat_interval']) {
-            $schedule = $this->generateCronExpression($validated['repeat_interval'], $validated['start_time']);
-        }
-
         // Create a new scheduled task
         $cronbot = ScheduledCronbot::create([
             'user_id' => $user->id,
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
             'assistant_id' => $validated['assistant_id'],
             'prompt' => $validated['prompt'],
+            'tools' => $validated['tools'] ?? [],
             'is_repeating' => $validated['is_repeating'],
-            'schedule' => $schedule,
-            'next_run_at' => $validated['start_time'],
-            'end_at' => $validated['end_time'] ?? null,
+            'schedule' => $validated['schedule'],
+            'scheduling_metadata' => $validated['scheduling_metadata'] ?? null,
+            'next_run_at' => $validated['next_run_at'],
+            'end_at' => $validated['end_at'] ?? null,
             'fail_tool_id' => $validated['fail_tool_id'] ?? null,
             'success_tool_id' => $validated['success_tool_id'] ?? null,
             'pause_tool_id' => $validated['pause_tool_id'] ?? null,
-            'is_active' => true,
+            'is_active' => $validated['is_active'] ?? true,
         ]);
 
         return response()->json($cronbot, 201);
@@ -78,31 +90,28 @@ class ScheduledCronbotController extends Controller
     public function update(Request $request, ScheduledCronbot $scheduled_cronbot)
     {
         $validated = $request->validate([
-            'prompt' => 'required|string',
-            'assistant_id' => 'required|exists:assistants,id',
-            'is_repeating' => 'required|boolean',
-            'repeat_interval' => 'nullable|string|in:hourly,twice_daily,daily,weekly,monthly',
-            'start_time' => 'required|date',
-            'end_time' => 'nullable|date|after:start_time',
+            'name' => 'sometimes|required|string|max:255',
+            'description' => 'nullable|string',
+            'prompt' => 'sometimes|required|string',
+            'assistant_id' => 'sometimes|required|exists:assistants,id',
+            'tools' => 'nullable|array',
+            'tools.*.id' => 'required|exists:tools,id',
+            'tools.*.name' => 'required|string',
+            'tools.*.parameters' => 'nullable|array',
+            
+            // Scheduling fields
+            'is_repeating' => 'sometimes|required|boolean',
+            'is_active' => 'boolean',
+            'schedule' => 'nullable|string',
+            'next_run_at' => 'sometimes|required|date',
+            'end_at' => 'nullable|date|after:next_run_at',
+            'scheduling_metadata' => 'nullable|array',
+            
+            // Legacy fields (keeping for backward compatibility)
             'fail_tool_id' => 'nullable|exists:tools,id',
             'success_tool_id' => 'nullable|exists:tools,id',
             'pause_tool_id' => 'nullable|exists:tools,id',
-            'is_active' => 'nullable|boolean',
         ]);
-
-        // Update next_run_at based on start_time
-        $validated['next_run_at'] = $validated['start_time'];
-
-        // If repeating and interval provided, generate a new cron expression
-        if ($validated['is_repeating'] && isset($validated['repeat_interval'])) {
-            $validated['schedule'] = $this->generateCronExpression(
-                $validated['repeat_interval'], 
-                $validated['start_time']
-            );
-        } else {
-            $validated['schedule'] = null;
-            $validated['repeat_interval'] = null;
-        }
 
         $scheduled_cronbot->update($validated);
 
@@ -147,33 +156,51 @@ class ScheduledCronbotController extends Controller
      */
     protected function executeCronbot(ScheduledCronbot $cronbot)
     {
-        // Placeholder for the actual assistant logic
-        $assistantResponse = "Executed prompt: {$cronbot->prompt}";
-
-        // Simulate checking success or failure
-        $isSuccess = rand(0, 1) === 1;
-
-        if ($isSuccess) {
-            // Handle success_tool_id
-            if ($cronbot->success_tool_id) {
-                // Execute success tool logic here
+        Log::info('Executing cronbot ID: ' . $cronbot->id);
+        
+        try {
+            // Get the base path of the Laravel application
+            $basePath = base_path();
+            
+            // Run the actual cronbot command with the specific ID using exec()
+            $command = "cd {$basePath} && php artisan cronbots:run --run-id={$cronbot->id}";
+            
+            // Execute the command and capture output
+            $output = [];
+            $returnCode = 0;
+            
+            exec($command . " 2>&1", $output, $returnCode);
+            
+            $outputString = implode("\n", $output);
+            Log::info('Cronbot command output: ' . $outputString);
+            
+            if ($returnCode === 0) {
+                return [
+                    'success' => true,
+                    'response' => 'Cronbot executed successfully',
+                    'output' => $outputString,
+                    'command' => $command,
+                    'return_code' => $returnCode
+                ];
+            } else {
+                Log::error('Cronbot command failed with return code: ' . $returnCode);
+                return [
+                    'success' => false,
+                    'response' => 'Cronbot execution failed',
+                    'output' => $outputString,
+                    'command' => $command,
+                    'return_code' => $returnCode
+                ];
             }
-        } else {
-            // Handle fail_tool_id
-            if ($cronbot->fail_tool_id) {
-                // Execute fail tool logic here
-            }
+            
+        } catch (\Exception $e) {
+            Log::error('Error executing cronbot: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'response' => 'Error executing cronbot: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ];
         }
-
-        // Optionally handle pause or self-destruction
-        if (!$cronbot->is_repeating) {
-            $cronbot->update(['is_active' => false]); // Disable single-run tasks after execution
-        }
-
-        return [
-            'success' => $isSuccess,
-            'response' => $assistantResponse,
-        ];
     }
 
     protected function generateCronExpression($repeatInterval, $startTime)

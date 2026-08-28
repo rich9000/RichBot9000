@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Assistant;
 use App\Models\Tool;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -56,8 +57,12 @@ class AssistantController extends Controller
             'system_message' => 'required|string',
             'model_id' => 'required|exists:models,id',
             'success_tool_id' => 'nullable|exists:tools,id',
+            'success_assistant_id' => 'nullable|exists:assistants,id',
+            'fail_tool_id' => 'nullable|exists:tools,id',
+            'fail_assistant_id' => 'nullable|exists:assistants,id',
             'type' => 'nullable|string|max:50',
             'interactive' => 'nullable|boolean',
+            'is_public' => 'nullable|boolean',
         ]);
 
         $assistant = Assistant::create([
@@ -66,8 +71,12 @@ class AssistantController extends Controller
             'user_id' => $request->user()->id,
             'model_id' => $validatedData['model_id'],
             'success_tool_id' => $validatedData['success_tool_id'] ?? null,
+            'success_assistant_id' => $validatedData['success_assistant_id'] ?? null,
+            'fail_tool_id' => $validatedData['fail_tool_id'] ?? null,
+            'fail_assistant_id' => $validatedData['fail_assistant_id'] ?? null,
             'type' => $validatedData['type'] ?? '',
             'interactive' => $validatedData['interactive'] ?? false,
+            'is_public' => $validatedData['is_public'] ?? false,
         ]);
 
         if ($request->has('tool_ids')) {
@@ -84,12 +93,15 @@ class AssistantController extends Controller
 
         $validatedData = $request->validate([
             'name' => 'sometimes|string|max:255',
-
             'system_message' => 'sometimes|string',
             'model_id' => 'sometimes|exists:models,id',
             'success_tool_id' => 'nullable|exists:tools,id',
+            'success_assistant_id' => 'nullable|exists:assistants,id',
+            'fail_tool_id' => 'nullable|exists:tools,id',
+            'fail_assistant_id' => 'nullable|exists:assistants,id',
             'type' => 'nullable|string|max:50',
             'interactive' => 'nullable|boolean',
+            'is_public' => 'nullable|boolean',
         ]);
 
         $assistant->update([
@@ -97,9 +109,13 @@ class AssistantController extends Controller
             'system_message' => $validatedData['system_message'] ?? $assistant->system_message,
             'model_id' => $validatedData['model_id'] ?? $assistant->model_id,
             'success_tool_id' => $validatedData['success_tool_id'] ?? $assistant->success_tool_id,
+            'success_assistant_id' => $validatedData['success_assistant_id'] ?? $assistant->success_assistant_id,
+            'fail_tool_id' => $validatedData['fail_tool_id'] ?? $assistant->fail_tool_id,
+            'fail_assistant_id' => $validatedData['fail_assistant_id'] ?? $assistant->fail_assistant_id,
             'type' => $validatedData['type'] ?? $assistant->type,
             'user_id' => $assistant->user_id ?? $request->user->id,
             'interactive' => $validatedData['interactive'] ?? $assistant->interactive,
+            'is_public' => $validatedData['is_public'] ?? $assistant->is_public,
         ]);
 
         if ($request->has('tool_ids')) {

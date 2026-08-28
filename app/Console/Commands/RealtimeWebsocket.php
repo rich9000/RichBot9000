@@ -29,8 +29,10 @@ class RealtimeWebsocket extends Command
         
         // SSL Configuration
         $this->server->set([
-            'ssl_cert_file' => '/etc/ssl/certs/richbot9000.crt',
-            'ssl_key_file' => '/etc/ssl/private/richbot9000.key',
+            'ssl_cert_file' => config('app.ssl_cert_file'),
+            'ssl_key_file' => config('app.ssl_key_file'),
+            //'ssl_cert_file' => '/etc/ssl/certs/richbot9000.crt',
+            //'ssl_key_file' => '/etc/ssl/private/richbot9000.key',
             'worker_num' => 1,
             'daemonize' => false,
             'log_level' => SWOOLE_LOG_DEBUG,

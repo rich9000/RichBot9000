@@ -61,7 +61,7 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
-        <a class="navbar-brand" href="#">The Rich Bot 9000</a>
+        <a class="navbar-brand" href="/">The RichBot 9000</a>
 
         <div class="" id="">
 
@@ -126,7 +126,10 @@
             <!-- Launch WebApp Button -->
             <ul class="navbar-nav ms-3">
                 <li class="nav-item">
-                    <a href="https://richbot9000.com/webapp" target="_blank" class="btn btn-primary">Launch WebApp</a>
+                    <a href="{{ config('app.url') }}/webapp" target="_blank" class="btn btn-primary">Launch WebApp</a>
+                </li>
+                <li class="nav-item ms-2">
+                    <a href="{{ route('merchandise.index') }}" class="btn btn-danger">Shop Merchandise</a>
                 </li>
             </ul>
         </div>

@@ -40,14 +40,18 @@ return [
 
     'twilio' => [
         //'auth_token' => env('TWILIO_AUTH_TOKEN'),
-    'sid' => env('TWILIO_SID'),
-    'token' => env('TWILIO_TOKEN'),
-
+        'sid' => env('TWILIO_SID'),
+        'token' => env('TWILIO_TOKEN'),
     ],
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'organization' => env('OPENAI_ORGANIZATION'),
+    ],
+
+    'rainbow' => [
+        'api_url' => env('RAINBOW_API_URL', 'https://dash.rainbowtel.net'),
+        'api_token' => env('RAINBOW_API_TOKEN'),
     ],
 
 ];

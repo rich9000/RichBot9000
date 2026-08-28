@@ -5,15 +5,7 @@
     </div>
     <div class="card-body">
 
-
-
         @include('webapp.richbot9000._richbot_user_profile')
-
-
-
-
-
-
 
     </div>
 </div>

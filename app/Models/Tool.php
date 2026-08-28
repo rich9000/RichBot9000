@@ -57,5 +57,9 @@ class Tool extends Model
 
     }
 
+    public function groups()
+    {
+        return $this->belongsToMany(ToolGroup::class, 'tool_tool_group');
+    }
 
 }

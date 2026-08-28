@@ -16,11 +16,19 @@ use App\Http\Controllers\RichbotController;
 use App\Http\Controllers\DisplayController;
 use App\Http\Controllers\TwilioVoiceController;
 use App\Http\Middleware\TwilioVerify;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AudioManagerController;
+use App\Http\Controllers\MerchandiseController;
+use App\Http\Controllers\ScreenOutputController;
 
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+
+
+
 Route::post('/sms/reply', [SmsController::class, 'handleReply']);
 
 Route::get('/richbot9000', [RichbotController::class, 'show']);
@@ -40,15 +48,19 @@ Route::get('/pwa', function () {
 Route::get('/webapp', function () {
     return view('webapp.webapp');
 });
+Route::get('/webappv2', function () {
+    return view('webapp.webappv2');
+});
 Route::get('/dashboard', function () {
 
     return view('dashboard');
 
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth'])->name('dashboard');
 
-Route::get('verify-email/{id}/{hash}', [VerifyEmailController::class, 'verify'])
-    ->middleware(['signed', 'throttle:6,1'])
-    ->name('verification.verify');
+// Email verification landing page for API-based verification
+Route::get('/verify-email/{token}', function ($token) {
+    return view('auth.verify-email-landing', ['token' => $token]);
+})->name('verification.landing');
 
 Route::middleware(['auth'])->group(function () {
 
@@ -146,5 +158,45 @@ Route::post('/voice/incoming', [TwilioVoiceController::class, 'handleCall'])
     ->middleware('twilio.verify');
 
 Route::get('/twilio/token', [TwilioVoiceController::class, 'generateToken']);
+
+// WebRTC Routes
+Route::prefix('webrtc')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\WebRTCController::class, 'dashboard'])->name('webrtc.dashboard');
+    Route::get('/widget', [App\Http\Controllers\WebRTCController::class, 'widget'])->name('webrtc.widget');
+    Route::get('/status', [App\Http\Controllers\WebRTCController::class, 'status'])->name('webrtc.status');
+});
+
+
+Route::get('/voice/websocket-call/{callSid}/{room}', [TwilioVoiceController::class, 'handleWebSocketCall']);
+Route::post('/voice/websocket-call/{room}', [TwilioVoiceController::class, 'handleWebSocketCall']);
+
+// Audio Manager Routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/api/dashboard/remote-richbots', [DashboardController::class, 'getRemoteRichbots']);
+});
+
+// Merchandise Routes
+Route::prefix('merchandise')->group(function () {
+    Route::get('/', [MerchandiseController::class, 'index'])->name('merchandise.index');
+    Route::get('/product/{product}', [MerchandiseController::class, 'show'])->name('merchandise.product');
+    Route::get('/checkout', [MerchandiseController::class, 'checkout'])->name('merchandise.checkout');
+    Route::get('/confirmation/{order}', [MerchandiseController::class, 'confirmation'])->name('merchandise.confirmation');
+    
+    // Cart API Routes
+    Route::post('/cart/add/{product}', [MerchandiseController::class, 'addToCart'])->name('merchandise.cart.add');
+    Route::delete('/cart/remove/{product}', [MerchandiseController::class, 'removeFromCart'])->name('merchandise.cart.remove');
+    Route::put('/cart/update/{product}', [MerchandiseController::class, 'updateCart'])->name('merchandise.cart.update');
+    
+    // Checkout API Routes
+    Route::post('/create-payment-intent', [MerchandiseController::class, 'createPaymentIntent'])->name('merchandise.create-payment-intent');
+    Route::post('/process-order', [MerchandiseController::class, 'processOrder'])->name('merchandise.process-order');
+});
+
+// Bare Call Routes
+Route::get('/bare/call', [App\Http\Controllers\BareCallController::class, 'showForm'])->name('bare.call.form');
+Route::post('/bare/call/start', [App\Http\Controllers\BareCallController::class, 'startCall'])->name('bare.call.start');
+
+Route::get('/screen', [ScreenOutputController::class, 'index'])->name('screen.output');
+Route::get('/screen/stream', [ScreenOutputController::class, 'stream'])->name('screen.stream');
 
 require __DIR__.'/auth.php';

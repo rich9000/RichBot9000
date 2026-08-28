@@ -4,15 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Conversation extends Model
 {
     protected $keyType = 'string';
     public $incrementing = false;
     protected $fillable = [
+        'id',
         'title',
         'user_id',
         'type',
+        'room',
         'status',
         'assistant_type',
         'assistant_id',
@@ -25,10 +28,15 @@ class Conversation extends Model
         'model',
         'prompt',
         'model_id',
+        'phone_tree_call_id',
+        'conversation_path_id',
+        'current_node_index',
+        'path_state'
     ];
     protected $casts = [
         'active_tools' => 'array',
         'system_messages' => 'array',
+        'path_state' => 'json',
     ];
     protected static function boot()
     {
@@ -40,6 +48,20 @@ class Conversation extends Model
         });
     }
 
+    //we cant overload it, we ave to get the whole path_state and add to it
+    public function addToPathState($key, $value){
+        $path_state = $this->path_state;
+        $path_state[$key] = $value;
+        $this->path_state = $path_state;
+        $this->save();
+    }
+
+    public function getPathState(){
+        return $this->path_state;
+    }
+    public function getPathStateByKey($key){
+        return $this->path_state[$key] ?? null;
+    }
 
     public function getPrompt(){
 
@@ -198,6 +220,16 @@ class Conversation extends Model
     public function model()
     {
         return $this->belongsTo(AiModel::class, 'model_id');
+    }
+
+    public function phoneTreeCall()
+    {
+        return $this->belongsTo(PhoneTreeCall::class);
+    }
+
+    public function conversationPath(): BelongsTo
+    {
+        return $this->belongsTo(ConversationPath::class);
     }
 
 

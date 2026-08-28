@@ -54,6 +54,20 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'domain' => env('APP_DOMAIN', 'richbot9000.com'),
+
+    'ws_port' => env('APP_WS_PORT', '9501'),
+
+    'ws_port_alt' => env('APP_WS_PORT_ALT', '9502'),
+
+    'base_path' => env('APP_BASE_PATH', '/var/www/html/richbot9000.com'),
+
+    'ssl_cert_file' => env('SSL_CERT_FILE', '/etc/letsencrypt/live/aisolutionskc.com/fullchain.pem'),
+
+    'ssl_key_file' => env('SSL_KEY_FILE', '/etc/letsencrypt/live/aisolutionskc.com/privkey.pem'),
+
+    'turn_server' => env('TURN_SERVER', 'turn.richbot9000.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

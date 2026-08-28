@@ -23,6 +23,16 @@ class DisplayController extends Controller
             $display = Display::where(['name'=> $id,'status'=>1])->first();
         }
 
+        if(!$display){
+
+            $display = new Display();
+            $display->name = $id;
+            $display->content = 'No content';
+            $display->status = 1;
+            $display->save();
+            
+        }
+
         if(request()->wantsJson()||request()->ajax() || request()->header('Content-Type') == 'application/json'){
 
             return response()->json($display);

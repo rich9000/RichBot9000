@@ -6,6 +6,575 @@ function apiHeaders() {
     };
 }
 
+// Menu Configuration
+const menuConfig = {
+    mainMenu: [
+        {
+            id: 'dashboard',
+            label: 'Dashboard',
+            icon: 'fas fa-home',
+            section: 'richbotSection',
+            roles: ['*'],
+            view: 'webapp.richbot9000._richbot_dashboard'
+        },
+        {
+            id: 'userMenu',
+            label: 'User Menu',
+            icon: 'fas fa-user-cog',
+            roles: ['*'],
+            submenu: [
+                {
+                    header: 'Communication',
+                    items: [
+                        {
+                            label: 'Assistant Chat',
+                            icon: 'fas fa-comments',
+                            view: 'webapp.bare._chat_client',
+                            section: 'assistant-chat-section',
+                            roles: ['*']
+                        },
+                        {
+                            label: 'Assistant Phone Call',
+                            icon: 'fas fa-phone',
+                            view: 'webapp.bare._assistant_phone_call',
+                            section: 'assistant-phone-call-section',
+                            roles: ['assistant_phone_call_user', 'admin']
+                        },
+                        {
+                            label: 'Start Bare Call',
+                            icon: 'fas fa-phone',
+                            view: 'webapp.bare._bare_call',
+                            section: 'bare-call-section',
+                            roles: ['user', 'admin']
+                        },
+                        {
+                            label: 'Image Generator',
+                            icon: 'fas fa-image',
+                            view: 'webapp.openai._images',
+                            section: 'image-generator-section',
+                            roles: ['user']
+                        }
+                    ]
+                },
+                {
+                    header: 'AI Management',
+                    items: [
+                        {
+                            label: 'Assistants',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.assistants._index',
+                            section: 'assistants_content_section',
+                            roles: ['*']
+                        },
+                        {
+                            label: 'Tools',
+                            icon: 'fas fa-tools',
+                            view: 'webapp.tools._index',
+                            section: 'ollama-tools-section',
+                            roles: ['*']
+                        }
+                    ]
+                },
+                {
+                    header: 'RichBots',
+                    items: [
+                        {
+                            label: 'CronBots',
+                            icon: 'fas fa-clock',
+                            view: 'webapp.cronbot._index',
+                            section: 'cronbots-section',
+                            roles: ['*']
+                        },
+                        {
+                            label: 'Create CronBot',
+                            icon: 'fas fa-clock',
+                            view: 'webapp.cronbot._create',
+                            section: 'cronbots-create-section',
+                            roles: ['*']
+                        },
+                        {
+                            label: 'Remote Richbots',
+                            icon: 'fas fa-server',
+                            view: 'webapp.remote_richbot._richbots',
+                            section: 'remote-richbots-section',
+                            roles: ['remote_richbot_user', 'remote_richbot_admin', 'admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'Data Management',
+                    items: [
+                        {
+                            label: 'RichBot Overview',
+                            icon: 'fas fa-tachometer-alt',
+                            view: 'webapp.richbot9000._richbot_dashboard',
+                            section: 'richbotSection',
+                            roles: ['richbot_user']
+                        },
+                        {
+                            label: 'Contacts',
+                            icon: 'fas fa-address-book',
+                            view: 'webapp.contacts._index',
+                            section: 'contacts-section',
+                            roles: ['user']
+                        },
+                        {
+                            label: 'Integrations',
+                            icon: 'fas fa-plug',
+                            view: 'webapp.integrations._index',
+                            section: 'integrations-section',
+                            roles: ['user']
+                        },
+                        {
+                            label: 'Surveys',
+                            icon: 'fas fa-file-code',
+                            view: 'webapp.survey._index',
+                            section: 'surveys-section',
+                            roles: ['surveys_user', 'admin']
+                        },
+                        {
+                            label: 'Appointments',
+                            icon: 'fas fa-calendar',
+                            view: 'webapp.appointments._index',
+                            section: 'appointment-index-section',
+                            roles: ['user']
+                        },
+                        {
+                            label: 'Projects',
+                            icon: 'fas fa-project-diagram',
+                            view: 'webapp.project._projects',
+                            section: 'projects-index-section',
+                            roles: ['user']
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'openTabs',
+            label: 'Open Tabs',
+            icon: 'fas fa-folder-open',
+            roles: ['user'],
+            submenu: [
+                {
+                    header: 'Recent Tabs',
+                    items: [
+                        {
+                            label: 'No open tabs',
+                            icon: 'fas fa-file',
+                            roles: ['user']
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'admin',
+            label: 'Admin',
+            icon: 'fas fa-shield-alt',
+            roles: ['admin'],
+            submenu: [
+                {
+                    items: [
+                        {
+                            label: 'Conversation Paths',
+                            icon: 'fas fa-tags',
+                            view: 'webapp.conversation_path._index',
+                            section: 'conversation-path-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Conversations',
+                            icon: 'fas fa-tags',
+                            view: 'webapp.conversations._index',
+                            section: 'conversations-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Screen Output',
+                            icon: 'fas fa-tv',
+                            view: 'webapp.screen_output._screen-output',
+                            section: 'screen-output-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Tool Groups',
+                            icon: 'fas fa-tags',
+                            view: 'webapp.tools._groups',
+                            section: 'tool-groups-section',
+                            roles: ['tools_admin', 'admin']
+                        },
+                        {
+                            label: 'Script Manager',
+                            icon: 'fas fa-sitemap',
+                            view: 'webapp.scripts._index',
+                            section: 'conversation-script-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Phone Tree',
+                            icon: 'fas fa-phone',
+                            view: 'webapp.phone-tree._index',
+                            section: 'phone-tree-section',
+                            roles: ['phone_tree_user', 'phone_tree_admin', 'admin']
+                        },
+                        {
+                            label: 'Audio Manager',
+                            icon: 'fas fa-music',
+                            view: 'webapp.audio._index',
+                            section: 'audio-section',
+                            roles: ['admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'System Management',
+                    items: [
+                        {
+                            label: 'Admin Section',
+                            icon: 'fas fa-cog',
+                            view: 'webapp.richbot9000._admin_section',
+                            section: 'admin-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'SMS Messages',
+                            icon: 'fas fa-sms',
+                            view: 'webapp.sms._sms_index',
+                            section: 'sms-messages-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Bare Websocket Dashboard',
+                            icon: 'fas fa-server',
+                            view: 'webapp.bare._dashboard',
+                            section: 'bare-dashboard-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Twilio Status Overview',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.webrtc._dashboard',
+                            section: 'webrtc-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'OpenAI Status Overview',
+                            icon: 'fas fa-brain',
+                            view: 'webapp.openai._realtime',
+                            section: 'realtime-section',
+                            roles: ['admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'Mock Files',
+                    items: [
+                        {
+                            label: 'Easy AI Form Maker',
+                            icon: 'fas fa-file-code',
+                            view: 'webapp.ai_easy_form._easy_ai_form_maker',
+                            section: 'easy-ai-form-maker-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Mock App',
+                            icon: 'fas fa-file-code',
+                            view: 'webapp.mock._mock',
+                            section: 'mock-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Mock Conversation Path Builder',
+                            icon: 'fas fa-file-code',
+                            view: 'webapp.mock._conversation_path_builder',
+                            section: 'conversation-path-builder-section-mock',
+                            roles: ['admin']
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'tools',
+            label: 'Tools',
+            icon: 'fas fa-tools',
+            roles: ['tools_user', 'tools_admin', 'admin'],
+            submenu: [
+                {
+                    header: 'Development Tools',
+                    items: [
+                        {
+                            label: 'Sockets Test',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.websockets._test',
+                            section: 'sockets-test-section',
+                            roles: ['tools_user', 'tools_admin', 'admin']
+                        },
+                        {
+                            label: 'WebSocket Client',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.websockets._client',
+                            section: 'websocket-client-section',
+                            roles: ['tools_user', 'tools_admin', 'admin']
+                        },
+                        {
+                            label: 'WebSocket Manager',
+                            icon: 'fas fa-network-wired',
+                            view: 'webapp.websockets._manager',
+                            section: 'websockets-manager-section',
+                            roles: ['tools_admin', 'admin']
+                        },
+                        {
+                            label: 'Assistants Prompt',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.assistants._prompt',
+                            section: 'assistants-prompt-section',
+                            roles: ['tools_user', 'tools_admin', 'admin']
+                        },
+                        {
+                            label: 'Assistants Client',
+                            icon: 'fas fa-robot',
+                            view: 'webapp.assistants._client',
+                            section: 'assistants-client-section',
+                            roles: ['tools_user', 'tools_admin', 'admin']
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'legacy',
+            label: 'Legacy',
+            icon: 'fas fa-archive',
+            roles: ['admin'],
+            submenu: [
+                {
+                    header: 'Dashboard',
+                    items: [
+                        {
+                            label: 'RichBot9000 Dashboard',
+                            icon: 'fas fa-tachometer-alt',
+                            view: 'webapp.richbot9000._admin_section',
+                            section: 'richbotSection',
+                            roles: ['admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'Communication',
+                    items: [
+                        {
+                            label: 'Chat',
+                            icon: 'fas fa-comment',
+                            view: 'webapp.openai._prompt',
+                            section: 'chat_content_section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'SMS Messages',
+                            icon: 'fas fa-sms',
+                            view: 'webapp.sms._sms_index',
+                            section: 'sms-messages-section',
+                            roles: ['admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'AI & Assistants',
+                    items: [
+                        {
+                            label: 'Functions',
+                            icon: 'fas fa-code',
+                            view: 'assistant_functions.content._index',
+                            section: 'functions_content_section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Assistants',
+                            icon: 'fas fa-robot',
+                            view: 'assistants.content._index',
+                            section: 'assistants_content_section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Ollama Overview',
+                            icon: 'fas fa-brain',
+                            view: 'webapp.ollama._dashboard',
+                            section: 'ollama-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Whisper Test',
+                            icon: 'fas fa-microphone',
+                            view: 'webapp.whisper._prompt',
+                            section: 'whisper-prompt',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Ollama Prompt',
+                            icon: 'fas fa-comments',
+                            view: 'webapp.ollama_conversations._ollama_prompt',
+                            section: 'ollama-prompt',
+                            roles: ['admin']
+                        }
+                    ]
+                },
+                {
+                    header: 'Management',
+                    items: [
+                        {
+                            label: 'Appointments',
+                            icon: 'fas fa-calendar',
+                            view: 'webapp.appointments._index',
+                            section: 'appointment-index-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Projects',
+                            icon: 'fas fa-project-diagram',
+                            view: 'webapp.project._projects',
+                            section: 'projects-index-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'RichBots Overview',
+                            icon: 'fas fa-server',
+                            view: 'webapp.remote_richbot._richbots',
+                            section: 'remote-richbots-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Ollama Assistants',
+                            icon: 'fas fa-users',
+                            view: 'webapp.assistants._index',
+                            section: 'ollama-assistants-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Ollama Tools',
+                            icon: 'fas fa-tools',
+                            view: 'webapp.tools._index',
+                            section: 'ollama-tools-section',
+                            roles: ['admin']
+                        },
+                        {
+                            label: 'Assistant Pipelines',
+                            icon: 'fas fa-stream',
+                            view: 'webapp.pipelines._index',
+                            section: 'assistant-pipelines-section',
+                            roles: ['admin']
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+// Menu Generator Functions
+function generateMenu(menuConfig, userRoles) {
+    const navbar = document.querySelector('#navbarContent .navbar-nav');
+    if (!navbar) return;
+
+    // Clear existing menu items
+    navbar.innerHTML = '';
+
+    // Generate menu items
+    menuConfig.mainMenu.forEach(menuItem => {
+        if (hasAccess(menuItem.roles, userRoles)) {
+            const menuElement = createMenuElement(menuItem, userRoles);
+            navbar.appendChild(menuElement);
+        }
+    });
+}
+
+function hasAccess(requiredRoles, userRoles) {
+    if (requiredRoles.includes('*')) return true;
+    return userRoles.some(role => requiredRoles.includes(role.toLowerCase()));
+}
+
+function createMenuElement(menuItem, userRoles) {
+    const li = document.createElement('li');
+    li.className = 'nav-item dropdown';
+
+    // Add role-based classes
+    menuItem.roles.forEach(role => {
+        if (userRoles.includes(role)) {
+            li.classList.add(`role-${role}`);
+        }
+    });
+
+    if (menuItem.submenu) {
+        // Create dropdown menu
+        li.innerHTML = `
+            <a class="nav-link px-3 dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                <i class="${menuItem.icon} me-1"></i>${menuItem.label}
+            </a>
+            <div class="dropdown-menu border-0 shadow-sm">
+                ${generateSubmenu(menuItem.submenu, userRoles)}
+            </div>
+        `;
+    } else {
+        // Create single menu item
+        li.innerHTML = `
+            <a class="nav-link px-3 nav-content-loader" href="#" 
+               data-view="${menuItem.view}" 
+               data-section="${menuItem.section}">
+                <i class="${menuItem.icon} me-1"></i>${menuItem.label}
+            </a>
+        `;
+    }
+
+    return li;
+}
+
+function generateSubmenu(submenu, userRoles) {
+    return submenu.map(section => {
+        let html = '';
+        
+        if (section.header) {
+            html += `<div class="dropdown-header">${section.header}</div>`;
+        }
+
+        if (section.items) {
+            section.items.forEach(item => {
+                const hasRequiredAccess = hasAccess(item.roles, userRoles);
+                const roleClasses = item.roles
+                    .filter(role => userRoles.includes(role))
+                    .map(role => `role-${role}`)
+                    .join(' ');
+                
+                html += `
+                    <a class="dropdown-item nav-content-loader ${roleClasses} ${!hasRequiredAccess ? 'disabled' : ''}" 
+                       href="#" 
+                       data-view="${item.view}" 
+                       data-section="${item.section}"
+                       ${!hasRequiredAccess ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>
+                        <i class="${item.icon} me-2"></i>${item.label}
+                    </a>
+                `;
+            });
+        }
+
+        return html;
+    }).join('');
+}
+
+// Function to update menu based on user roles
+function updateMenu() {
+    // If not logged in, clear the menu
+    if (!appState?.tokens?.richbot || !appState?.user) {
+        const navbar = document.querySelector('#navbarContent .navbar-nav');
+        if (navbar) {
+            navbar.innerHTML = '';
+        }
+        return;
+    }
+
+    const userRoles = appState.user?.roles?.map(role => role.name.toLowerCase()) || [];
+    generateMenu(menuConfig, userRoles);
+}
 
 function extractAndInjectScripts(htmlString) {
     // Create a temporary DOM element to parse the string
@@ -102,13 +671,8 @@ const updateUserUI = () => {
     setClassTextContent('richbot_user_email', '');
     setClassTextContent('richbot_user_phone_number', '');
 
-    // Hide all role-based menu items by default
-    document.querySelectorAll('[data-visible-role]').forEach(item => {
-        item.style.display = 'none';
-    });
-
-    // Only update UI elements if user is logged in
-    if (appState.tokens.richbot && appState.user) {
+    // Only update UI elements if user is logged in and appState is properly initialized
+    if (appState?.tokens?.richbot && appState?.user) {
         // Show logged-in elements
         hideElementsByClass('hidden_richbot_logged_in');
         showElementsByClass('hidden_richbot_logged_out');
@@ -136,21 +700,22 @@ const updateUserUI = () => {
         setClassTextContent('richbot_user_email', appState.user.email || '');
         setClassTextContent('richbot_user_phone_number', appState.user.phone_number || '');
 
-        // Show menu items based on user roles
-        if (appState.user.roles && Array.isArray(appState.user.roles)) {
-            const roleNames = appState.user.roles.map(role => role.name.toLowerCase());
-            document.querySelectorAll('[data-visible-role]').forEach(item => {
-                const requiredRole = item.getAttribute('data-visible-role').toLowerCase();
-                item.style.display = roleNames.includes(requiredRole) ? '' : 'none';
-            });
+        // Update menu based on user roles
+        if (appState.user.roles) {
+            updateMenu();
         }
     }
 
     // Update services list
     populateServicesList();
 
+    // Update roles list if user exists
+    if (appState?.user?.roles) {
+        populateMenuRolesList();
+    }
+
     // Handle other service tokens
-    if (appState.tokens.rainbow) {
+    if (appState?.tokens?.rainbow) {
         hideElementsByClass('hidden_rainbow_dash_logged_in');
         showElementsByClass('hidden_rainbow_dash_logged_out');
     } else {
@@ -158,7 +723,7 @@ const updateUserUI = () => {
         hideElementsByClass('hidden_rainbow_dash_logged_out');
     }
 
-    if (appState.tokens.bambooHR) {
+    if (appState?.tokens?.bambooHR) {
         hideElementsByClass('hidden_bamboohr_logged_in');
         showElementsByClass('hidden_bamboohr_logged_out');
     } else {
@@ -166,7 +731,7 @@ const updateUserUI = () => {
         hideElementsByClass('hidden_bamboohr_logged_out');
     }
 
-    if (appState.tokens.libreNMS) {
+    if (appState?.tokens?.libreNMS) {
         hideElementsByClass('hidden_librenms_logged_in');
         showElementsByClass('hidden_librenms_logged_out');
     } else {
@@ -280,31 +845,29 @@ function loadAssistants() {
     });
 }
 
+function populateMenuRolesList() {
+    const rolesList = document.getElementById('menuRolesList');
+    if (!rolesList || !appState?.user?.roles) return;
+    
+    rolesList.innerHTML = '';
+    appState.user.roles.forEach(role => {
+        const roleWords = role.name.split(' ');
+        const ucwordsRole = roleWords.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        rolesList.innerHTML += `<li>${ucwordsRole}</li>`;
+    });
+}
 
 const populateServicesList = () => {
     const servicesList = document.getElementById('servicesList');
+    if (!servicesList || !appState?.tokens) return;
+    
     servicesList.innerHTML = '';
 
-    console.log('populateServicesList',appState,appState.tokens);
-
     for (const [service, token] of Object.entries(appState.tokens)) {
-
-        const listItem = document.createElement('li');
-        listItem.textContent = service.charAt(0).toUpperCase() + service.slice(1);
-        //listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center','m-1');
-
         const statusBadge = document.createElement('span');
-
-        statusBadge.classList.add('badge', 'rounded-pill','m-1');
-        if (token) {
-            statusBadge.classList.add('bg-success');
-            statusBadge.textContent = listItem.textContent;
-        } else {
-            statusBadge.classList.add('bg-secondary');
-            statusBadge.textContent = listItem.textContent;
-        }
-        //listItem.appendChild(statusBadge);
-        //servicesList.appendChild(listItem);
+        statusBadge.classList.add('badge', 'rounded-pill', 'm-1');
+        statusBadge.classList.add(token ? 'bg-success' : 'bg-secondary');
+        statusBadge.textContent = service.charAt(0).toUpperCase() + service.slice(1);
         servicesList.appendChild(statusBadge);
     }
 };
@@ -424,14 +987,13 @@ const showSection = (sectionId) => {
             id: sectionId,
             title: sectionTitle
         });
+        
         // Update localStorage
         localStorage.setItem('app_state', JSON.stringify(appState));
         // Update the Open Tabs menu
         updateOpenTabsMenu();
+
     }
-
-
-
 
 };
 
@@ -835,16 +1397,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         localStorage.setItem('app_state', JSON.stringify(appState));
     } else {
-        appState = JSON.parse(saved_state);
+        try {
+            appState = JSON.parse(saved_state);
+        } catch (e) {
+            console.error('Error parsing saved state:', e);
+            appState = {
+                apiToken: null,
+                user: null,
+                tokens: {
+                    richbot: null,
+                    rainbow: null,
+                    bambooHR: null,
+                    libreNMS: null,
+                    train: null,
+                }
+            };
+        }
     }
 
     // Initialize App
-    loadAllData();
     updateUserUI();
     
     // If user is logged in, show dashboard, otherwise show login
-    if (appState.tokens.richbot && appState.user) {
-        updateUserUI();
+    if (appState?.tokens?.richbot && appState?.user) {
         setupMenuForRoles(appState.user.roles || []);
         showSection('richbotSection');
     } else {
@@ -856,12 +1431,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateOpenTabsMenu();
 
+    // Only load data if user is logged in
+    if (appState?.tokens?.richbot && appState?.user) {
+        loadAllData();
+    }
+
     // Event listener for dynamic content loading and section showing
-    document.querySelectorAll('.nav-content-loader').forEach(loader => {
-        loader.addEventListener('click', function(e) {
+    document.addEventListener('click', function(e) {
+        // Check if the clicked element is a nav-content-loader
+        if (e.target.classList.contains('nav-content-loader')) {
             e.preventDefault();
-            const view = this.getAttribute('data-view');
-            const targetId = this.getAttribute('data-section') || 'dynamic_content_section';
+            const view = e.target.getAttribute('data-view');
+            const targetId = e.target.getAttribute('data-section') || 'dynamic_content_section';
 
             // Check if the target element exists, if not, create it
             let targetElement = document.getElementById(targetId);
@@ -887,12 +1468,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
             // Remove active class from all section showers
-            document.querySelectorAll('.nav-section-toggler','nav-section-shower').forEach(link => {
+            document.querySelectorAll('.nav-section-toggler, .nav-section-shower').forEach(link => {
                 link.classList.remove('active');
             });
 
-            this.classList.add('active');
-        });
+            e.target.classList.add('active');
+        }
     });
 
     // Event Listeners for section toggling
@@ -913,7 +1494,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /*
     // Establish WebSocket connection
-const socket = new WebSocket('wss://richbot9000.com:9501');
+const socket = new WebSocket(window.appConfig?.wsUrl || 'wss://richbot9000.com:9501');
 
 // Handle connection open
 socket.onopen = () => {
@@ -1069,3 +1650,165 @@ function loadConversationsDataTable() {
         }
     });
 }
+
+// Initialize menu when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the menu
+    updateMenu();
+    
+    // Add event listener for role changes
+    document.addEventListener('roleChanged', function() {
+        updateMenu();
+    });
+});
+
+// Email Verification Functions
+function sendVerificationEmail() {
+    fetch('/api/email/verification-notification', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + appState.apiToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert('Verification email sent successfully!', 'success');
+    })
+    .catch(error => {
+        showAlert('Error sending verification email: ' + error.message, 'danger');
+    });
+}
+
+function verifyEmail(token) {
+    fetch('/api/verify-email', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + appState.apiToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: token })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Email verified successfully!', 'success');
+            appState.user.email_verified_at = new Date().toISOString();
+            localStorage.setItem('app_state', JSON.stringify(appState));
+            updateUserUI();
+        } else {
+            showAlert('Invalid verification code', 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error verifying email: ' + error.message, 'danger');
+    });
+}
+
+// SMS Verification Functions
+function sendSmsVerification() {
+    fetch('/api/resend-sms-verification', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + appState.apiToken,
+            'Accept': 'application/json',
+        }
+    })
+    .then(response => {
+        if (response.status === 401) {
+            throw new Error('Unauthorized. Please log in again.');
+        }
+        return response.json().then(data => {
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to resend verification SMS.');
+            }
+            return data;
+        });
+    })
+    .then(data => {
+        showAlert(data.message || 'Verification SMS sent successfully.', 'success');
+    })
+    .catch(error => {
+        console.error('Error resending verification SMS:', error);
+        showAlert(error.message || 'An error occurred. Please try again.', 'danger');
+    });
+}
+
+function verifySms(token) {
+    fetch('/api/verify-sms', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + appState.apiToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: token })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Phone number verified successfully!', 'success');
+            appState.user.phone_verified_at = new Date().toISOString();
+            localStorage.setItem('app_state', JSON.stringify(appState));
+            updateUserUI();
+        } else {
+            showAlert('Invalid verification code', 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error verifying phone number: ' + error.message, 'danger');
+    });
+}
+
+// Notification Preferences Functions
+function updateNotificationPreferences() {
+    const emailNotifications = document.getElementById('emailNotifications').checked;
+    const smsNotifications = document.getElementById('smsNotifications').checked;
+
+    fetch('/api/notification-preferences', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + appState.apiToken,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email_notifications: emailNotifications,
+            sms_notifications: smsNotifications
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        showAlert('Notification preferences updated successfully!', 'success');
+    })
+    .catch(error => {
+        showAlert('Error updating notification preferences: ' + error.message, 'danger');
+    });
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Email verification
+    document.getElementById('resendEmailVerification')?.addEventListener('click', sendVerificationEmail);
+    document.querySelector('.verify-richbot-email-button')?.addEventListener('click', function() {
+        const token = document.getElementById('emailCodeInput').value;
+        verifyEmail(token);
+    });
+
+    // SMS verification - REMOVED: Handled by _richbot_verify_phone.blade.php
+    document.getElementById('resendSmsVerification')?.addEventListener('click', sendSmsVerification);
+    // Removed conflicting phone verification listener
+
+    // Notification preferences
+    document.getElementById('emailNotifications')?.addEventListener('change', updateNotificationPreferences);
+    document.getElementById('smsNotifications')?.addEventListener('change', updateNotificationPreferences);
+
+    // Initialize notification preferences
+    if (appState?.user) {
+        document.getElementById('emailNotifications').checked = appState.user.email_notifications === 'enabled';
+        document.getElementById('smsNotifications').checked = appState.user.sms_notifications === 'enabled';
+    }
+});

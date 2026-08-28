@@ -134,7 +134,7 @@ class AIRelay
             ]);
 
             // Connect to local WebSocket server
-            $this->localClient = new Client("richbot9000.com", 9501, true);
+            $this->localClient = new Client(config('app.domain'), config('app.ws_port'), true);
             $this->localClient->setHeaders([
                 'Authorization' => 'Bearer ' . env('APP_KEY'),
                 'X-Relay-Type' => 'internal'

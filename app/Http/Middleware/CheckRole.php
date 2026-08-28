@@ -6,6 +6,8 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Role;
+
 class CheckRole
 {
     /**
@@ -15,9 +17,7 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, $role): Response
     {
-
-
-$user = $request->user();
+        $user = $request->user();
 
         if (!$user || !$user->hasRole($role)) {
             return response()->json(['message' => 'Unauthorized Role: '.$role,'email'=>auth()->user()], 403);

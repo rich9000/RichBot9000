@@ -95,14 +95,31 @@ alert('contacts index');
                 defaultContent: '',
                 render: function(data, type, row) {
                     if (!data) return '';
-                    return `
+                    let buttons = `
                         <button class="btn btn-sm btn-info" onclick="editContact(${data})">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="deleteContact(${data}, '${row.name}')">
-                            <i class="fas fa-trash"></i>
+                           Delete <i class="fas fa-trash"></i>
                         </button>
                     `;
+                    
+                    // Add opt-in button if not opted in
+
+                        buttons += `
+                            <button class="btn btn-sm btn-success" onclick="startOptIn(${data})">
+                                <i class="fas fa-check"></i> Opt-in
+                            </button>
+                        `;
+
+                        buttons += `
+                            <button class="btn btn-sm btn-danger" onclick="stopOptIn(${data})">
+                                <i class="fas fa-times"></i> Opt-out
+                            </button>
+                        `;
+
+                    
+                    return buttons;
                 }
             }
         ],
@@ -167,6 +184,54 @@ alert('contacts index');
                 showAlert('Error removing contact', 'danger');
             });
         }
+    }
+
+    function startOptIn(contactId) {
+        fetch(`/api/contacts/${contactId}/start-opt-in`, {
+            method: 'POST',
+            headers: apiHeaders()
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            if (data.conversation_id) {
+                // Start polling for conversation status
+                pollConversationStatus(data.conversation_id, contactId);
+                showAlert('Opt-in process started', 'info');
+            } else {
+                showAlert('Error starting opt-in process', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error starting opt-in process', 'danger');
+        });
+    }
+
+    function pollConversationStatus(conversationId, contactId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/api/conversations/${conversationId}`, {
+                headers: apiHeaders()
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    contactsTable.ajax.reload();
+                    showAlert('Contact has been opted in successfully', 'success');
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    showAlert('Opt-in process failed', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error polling conversation status:', error);
+                clearInterval(pollInterval);
+                showAlert('Error checking opt-in status', 'danger');
+            });
+        }, 5000); // Poll every 5 seconds
     }
 
     // Save button handler (for both create and edit)

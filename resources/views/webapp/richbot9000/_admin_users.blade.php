@@ -7,6 +7,7 @@
         <th>Email</th>
         <th>Phone</th>
         <th>Roles</th>
+        <th>Tool Groups</th>
         <th>Created At</th>
         <th>Actions</th>
     </tr>
@@ -55,6 +56,51 @@
     </div>
 </div>
 
+<!-- Tool Groups Modal -->
+<div class="modal fade" id="toolGroupsModal" tabindex="-1" aria-labelledby="toolGroupsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="toolGroupsModalLabel">Assign Tool Groups - <strong id="toolGroupUserNameSpan"></strong></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="toolGroupsForm">
+                    <input type="hidden" id="toolGroupUserId">
+                    <div class="mb-3">
+                        <label for="toolGroupsCheckboxes" class="form-label">Tool Groups</label>
+                        <div class="form-check" id="toolGroupsCheckboxes"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveToolGroupsButton">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete User Confirmation Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteUserModalLabel">Confirm User Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete user <strong id="deleteUserNameSpan"></strong>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteUserButton">Delete User</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     let isLoading = false;
 
@@ -81,9 +127,13 @@
             { 
                 data: 'roles',
                 render: function(data, type, row) {
-                    const roleText = data.length ? data.map(role => role.name).join(', ') : '<span class="text-muted">No Roles</span>';
-                    return `${roleText}
-                        <button class="btn btn-primary btn-sm assign-roles-btn ms-2" data-user-id="${row.id}" data-user-name="${row.name}">Assign Roles</button>`;
+                    return data.length ? data.map(role => role.name).join('<br>') : '<span class="text-muted">No Roles</span>';
+                }
+            },
+            {
+                data: 'tool_groups',
+                render: function(data, type, row) {
+                    return data && data.length ? data.map(group => group.name).join('<br>') : '<span class="text-muted">No Tool Groups</span>';
                 }
             },
             { 
@@ -97,11 +147,20 @@
                 render: function(data, type, row) {
                     return `
                         <div class="btn-group">
-                            <button class="btn btn-info btn-sm view-user-btn" data-user-id="${row.id}">
+                            <button class="btn btn-info btn-sm view-user-btn" data-user-id="${row.id}" title="View User">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button class="btn btn-primary btn-sm more-info-btn" data-user-id="${row.id}" data-user-name="${row.name}">
+                            <button class="btn btn-primary btn-sm more-info-btn" data-user-id="${row.id}" data-user-name="${row.name}" title="Edit User">
                                 <i class="fas fa-user-edit"></i>
+                            </button>
+                            <button class="btn btn-success btn-sm assign-roles-btn" data-user-id="${row.id}" data-user-name="${row.name}" title="Assign Roles">
+                                <i class="fas fa-user-tag"></i>
+                            </button>
+                            <button class="btn btn-warning btn-sm assign-tool-groups-btn" data-user-id="${row.id}" data-user-name="${row.name}" title="Assign Tool Groups">
+                                <i class="fas fa-tools"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-user-btn" data-user-id="${row.id}" data-user-name="${row.name}" title="Delete User">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     `;
@@ -274,6 +333,27 @@
                 firstTab.click();
             }
         }
+
+        // Handle assign tool groups button
+        if (target.matches('.assign-tool-groups-btn, .assign-tool-groups-btn *')) {
+            const btn = target.closest('.assign-tool-groups-btn');
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            document.getElementById('toolGroupUserNameSpan').textContent = userName;
+            document.getElementById('toolGroupUserId').value = userId;
+            loadToolGroups(userId);
+            new bootstrap.Modal(document.getElementById('toolGroupsModal')).show();
+        }
+
+        // Handle delete user button
+        if (target.matches('.delete-user-btn, .delete-user-btn *')) {
+            const btn = target.closest('.delete-user-btn');
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            document.getElementById('deleteUserNameSpan').textContent = userName;
+            document.getElementById('confirmDeleteUserButton').dataset.userId = userId;
+            new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
+        }
     });
 
     // Load users immediately if we're on the users tab
@@ -331,5 +411,76 @@
                 }, 500);
             })
             .catch(err => showAlert('Error saving roles. Please try again.', 'danger'));
+    });
+
+    // Function to load tool groups
+    function loadToolGroups(userId) {
+        const toolGroupsCheckboxes = document.getElementById('toolGroupsCheckboxes');
+        toolGroupsCheckboxes.innerHTML = '';
+
+        ajaxRequest(`/api/users/${userId}/tool-groups`)
+            .then(data => {
+                data.tool_groups.forEach(group => {
+                    const div = document.createElement('div');
+                    div.classList.add('form-check');
+                    div.innerHTML = `
+                        <input class="form-check-input" type="checkbox" value="${group.id}" id="tool-group-${group.id}" 
+                            ${data.user_tool_groups.includes(group.id) ? 'checked' : ''}>
+                        <label class="form-check-label" for="tool-group-${group.id}">${group.name}</label>
+                    `;
+                    toolGroupsCheckboxes.appendChild(div);
+                });
+            });
+    }
+
+    // Add event listener for saving tool groups
+    document.getElementById('saveToolGroupsButton').addEventListener('click', function() {
+        const userId = document.getElementById('toolGroupUserId').value;
+        const selectedToolGroups = Array.from(document.querySelectorAll('#toolGroupsCheckboxes input:checked'))
+            .map(checkbox => checkbox.value);
+
+        ajaxRequest(`/api/users/${userId}/tool-groups`, 'PUT', { tool_groups: selectedToolGroups })
+            .then(() => {
+                showAlert('Tool groups updated successfully.', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('toolGroupsModal')).hide();
+                
+                // Add a small delay before reloading
+                setTimeout(() => {
+                    reloadUsersTable()
+                        .then(() => {
+                            console.log('Users table reloaded after tool group update');
+                        })
+                        .catch(() => {
+                            console.error('Failed to reload users table after tool group update');
+                        });
+                }, 500);
+            })
+            .catch(err => showAlert('Error saving tool groups. Please try again.', 'danger'));
+    });
+
+    // Add event listener for confirm delete button
+    document.getElementById('confirmDeleteUserButton').addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        
+        ajaxRequest(`/api/users/${userId}`, 'DELETE')
+            .then(() => {
+                showAlert('User deleted successfully.', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('deleteUserModal')).hide();
+                
+                // Add a small delay before reloading
+                setTimeout(() => {
+                    reloadUsersTable()
+                        .then(() => {
+                            console.log('Users table reloaded after user deletion');
+                        })
+                        .catch(() => {
+                            console.error('Failed to reload users table after user deletion');
+                        });
+                }, 500);
+            })
+            .catch(err => {
+                showAlert('Error deleting user. Please try again.', 'danger');
+                console.error('Error deleting user:', err);
+            });
     });
 </script>

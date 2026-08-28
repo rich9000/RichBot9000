@@ -10,20 +10,45 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
 
+
+
 class ApiFileController extends Controller
 {
     public $storage;
     public Filesystem $filesystem;
 
+    public $context;
+    public $disk;
+    public $read_only;
+
+
     public function __construct(Filesystem $filesystem)
     {
         $this->filesystem = $filesystem;
-        $this->storage = Storage::disk('richbot_sandbox');
+        $this->read_only = true;        
+
     }
 
+    private function getDisk(Request $request)
+    {
+        $context = $request->input('context');
+        if ($context === 'file_action') {
+            return 'file_action';
+        }
+        if ($context === 'image_generator') {
+            return 'local';
+        }
+        return 'richbot_sandbox';
+    }
+    
     // Download a file from the server
     public function download(Request $request)
     {
+
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|string',
         ]);
@@ -61,6 +86,17 @@ class ApiFileController extends Controller
     // Delete a file from the server
     public function delete(Request $request): JsonResponse
     {
+        
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|string',
         ]);
@@ -104,6 +140,7 @@ class ApiFileController extends Controller
     public function listFiles(Request $request): JsonResponse
     {
 
+        $this->storage = Storage::disk($this->getDisk($request));
 
         Log::info('List FIles');
 
@@ -150,6 +187,8 @@ class ApiFileController extends Controller
     // List all folders in a directory
     public function listFolders(Request $request): JsonResponse
     {
+        $this->storage = Storage::disk($this->getDisk($request));
+
         $validator = Validator::make($request->all(), [
             'directory' => 'sometimes|string',
         ]);
@@ -192,6 +231,13 @@ class ApiFileController extends Controller
     // List the full file and directory tree structure
     public function listTree(Request $request): JsonResponse
     {
+        $this->storage = Storage::disk($this->getDisk($request));
+
+
+        //dd($request->all());
+
+        Log::info('List Tree');
+
         $validator = Validator::make($request->all(), [
             'directory' => 'sometimes|string',
         ]);
@@ -211,7 +257,7 @@ class ApiFileController extends Controller
             if (!$this->storage->exists($directory)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Directory not found'
+                    'message' => 'Directory not found '.json_encode($directory)
                 ], 404);
             }
 
@@ -226,13 +272,16 @@ class ApiFileController extends Controller
             Log::error("Listing tree failed for directory {$directory}: " . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to list directory tree asdf'.json_encode($e->getMessage())
+                'message' => 'Failed to list directory tree:'.json_encode($e->getMessage())
             ], 500);
         }
     }
 
     private function getDirectoryTree($directory, $currentDepth = 0, $maxDepth = 10)
     {
+
+        $this->storage = Storage::disk($this->getDisk(request()));
+
         if ($currentDepth > $maxDepth) {
             return [];
         }
@@ -287,6 +336,18 @@ class ApiFileController extends Controller
     // Create a new directory
     public function createDirectory(Request $request): JsonResponse
     {
+
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
+
+
         $validator = Validator::make($request->all(), ['directory' => 'required|string']);
 
         if ($validator->fails()) {
@@ -328,6 +389,15 @@ class ApiFileController extends Controller
     // Delete a directory from the server
     public function deleteDirectory(Request $request): JsonResponse
     {
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
         $validator = Validator::make($request->all(), [
             'directory' => 'required|string',
         ]);
@@ -375,6 +445,15 @@ class ApiFileController extends Controller
     // Write or overwrite text content to a file
     public function putText(Request $request): JsonResponse
     {
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|string',
             'content' => 'required|string'
@@ -414,6 +493,15 @@ class ApiFileController extends Controller
     // Append text content to a file
     public function appendText(Request $request): JsonResponse
     {
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+        $this->storage = Storage::disk($this->getDisk($request));
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|string',
             'content' => 'required|string'
@@ -499,6 +587,14 @@ class ApiFileController extends Controller
     // Upload file to the server
     public function upload(Request $request): JsonResponse
     {
+        if($this->read_only) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Files are read only'
+            ], 403);
+        }
+
+        $this->storage = Storage::disk($this->getDisk($request));
         $validator = Validator::make($request->all(), ['file' => 'required|file']);
 
         if ($validator->fails()) {

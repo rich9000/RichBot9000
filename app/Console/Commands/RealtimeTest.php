@@ -30,7 +30,7 @@ class RealtimeTest extends ConsoleCommand
         $loop = Factory::create();
 
 // Path to the WAV file
-        $wavFilePath = '/var/www/html/richbot9000.com/storage/app/remote_richbot/combined_audio.wav';
+        $wavFilePath = config('app.base_path').'/storage/app/remote_richbot/combined_audio.wav';
 
 // WebSocket connection details
         $url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";

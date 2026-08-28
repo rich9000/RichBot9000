@@ -17,10 +17,11 @@ class Assistant extends Model
   public $prompt = '';
     protected $casts = [
         'interactive' => 'boolean',
+        'is_public' => 'boolean',
     ];
 
-    protected $fillable = ['user_id','name', 'system_message', 'model_id', 'success_tool_id', 'type', 'interactive', 'created_at', 'updated_at','times_used',
-        'last_used',];
+    protected $fillable = ['user_id','name', 'system_message', 'model_id', 'success_tool_id', 'success_assistant_id', 'fail_tool_id', 'fail_assistant_id', 'type', 'interactive', 'created_at', 'updated_at','times_used',
+        'last_used', 'is_public'];
 
 
 
@@ -43,10 +44,7 @@ class Assistant extends Model
     {
         return $this->belongsToMany(Tool::class, 'assistant_tool');
     }
-    public function successTool()
-    {
-        return $this->belongsTo(Tool::class, 'success_tool_id');
-    }
+    
     public function aiModel()
     {
         return $this->belongsTo(AiModel::class, 'model_id');
@@ -58,8 +56,24 @@ class Assistant extends Model
         return $this->belongsTo(AiModel::class, 'model_id');
     }
 
+    public function successTool(){
+        return $this->belongsTo(Tool::class, 'success_tool_id');
+    }
 
+    public function successAssistant()
+    {
+        return $this->belongsTo(Assistant::class, 'success_assistant_id');
+    }
 
+    public function failTool()
+    {
+        return $this->belongsTo(Tool::class, 'fail_tool_id');
+    }
+
+    public function failAssistant()
+    {
+        return $this->belongsTo(Assistant::class, 'fail_assistant_id');
+    }
 
     public function toolJson() {
 
@@ -87,10 +101,29 @@ class Assistant extends Model
                         $description = "The " . str_replace('_', ' ', $param->name) . " parameter";
                     }
 
-                    $parameters['properties'][$param->name] = [
-                        'type' => $param->type ?: 'string', // Default to string if type is null
-                        'description' => $description
-                    ];
+                    if(str_starts_with($param->name, 'array:')){
+                        $array_type = str_replace('array:', '', $param->name);
+                        $parameters['properties'][$param->name] = [
+                            'type' => 'array',
+                            'description' => $description,
+                            'items' => [
+                                'type' => $array_type
+                            ]
+                        ];
+                    } else {
+
+                        $parameters['properties'][$param->name] = [
+                            'type' => $param->type ?: 'string', // Default to string if type is null
+                            'description' => $description
+                        ];
+
+                        if($param->type == 'array'){
+                            $parameters['properties'][$param->name]['items'] = [
+                                'type' => 'string'
+                            ];
+                        }
+                    }
+                    
                     
                     if ($param->required) {
                         $parameters['required'][] = $param->name;
@@ -143,41 +176,48 @@ class Assistant extends Model
 
     public function generateTools()
     {
+        // Return empty array if no tools
+        if ($this->tools->isEmpty()) {
+            return collect([]);
+        }
 
         // Transform the tools and parameters to the desired JSON structure
         $tools = $this->tools->map(function ($tool) {
-
             $return = [
                 'type' => 'function',
                 'function' => [
                     'name' => $tool->name,
                     'description' => $tool->description,
-                    'strict'=>(bool) $tool->strict,
-
+                    'strict' => (bool) $tool->strict,
                 ],
-
             ];
-            if($tool->parameters()->count()){
 
+            if($tool->parameters()->count()) {
                 $return['function']['parameters'] = [
                     'type' => 'object',
                     'properties' => $tool->parameters()->get()->mapWithKeys(function ($param) {
+                        $property = [
+                            'type' => $param->type,
+                            'description' => $param->description ?? '',
+                        ];
+                        
+                        // Add items type for array parameters
+                        if ($param->type === 'array') {
+                            $property['items'] = [
+                                'type' => 'string'
+                            ];
+                        }
+                        
                         return [
-                            $param->name => [
-                                'type' => $param->type,
-                                'description' => $param->description ?? '',
-                                //'enum' => $param->enum ?? [], // Assuming the enum is stored in the database, if applicable
-                            ],
+                            $param->name => $property
                         ];
                     })->toArray(),
                     "additionalProperties" => false,
                     'required' => $tool->parameters()->where('required', true)->pluck('name')->toArray(),
                 ];
-
             }
 
             return $return;
-
         });
 
         return $tools;

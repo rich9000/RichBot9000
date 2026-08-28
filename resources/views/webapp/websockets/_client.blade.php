@@ -344,10 +344,11 @@ async function connectToAssistant(assistantId) {
 
     // Create WebSocket connection
     if (!appState.audio.socket || appState.audio.socket.readyState !== WebSocket.OPEN) {
-        const wsUrl = `wss://richbot9000.local:9501/app/${encodeURIComponent(appState.apiToken)}${assistantId ? '/' + encodeURIComponent(assistantId) : ''}`;
+        const wsUrl = `${window.appConfig.wsUrl}/app/${encodeURIComponent(appState.apiToken)}${assistantId ? '/' + encodeURIComponent(assistantId) : ''}`;
         
         logMessage(`Connecting to WebSocket: ${wsUrl}`, 'info');
         appState.audio.socket = new WebSocket(wsUrl);
+
         setupSocketListeners();
 
         // Send start chat message once connected
@@ -360,7 +361,15 @@ async function connectToAssistant(assistantId) {
             console.log('🟢 Starting chat:', startChatMessage);
             logMessage('WebSocket connected, starting chat', 'info');
             appState.audio.socket.send(JSON.stringify(startChatMessage));
+
+            showChat();
         });
+
+        
+
+
+
+
     }
 }
 
@@ -426,6 +435,9 @@ function toggleSpeaker() {
 
 // Update socket listeners to use local socket variable
 function setupSocketListeners() {
+
+    console.log("Setting up socket listeners");
+
     logMessage('Setting up socket listeners', 'info');
     
     appState.audio.socket.addEventListener('open', () => {
@@ -556,7 +568,14 @@ async function processAudioQueue() {
         const audioBuffer = await appState.audio.context.decodeAudioData(completeAudio.buffer);
         const source = appState.audio.context.createBufferSource();
         source.buffer = audioBuffer;
-        source.playbackRate.value = appState.audio.pitchFactor;
+        
+        // Force slower playback speed (0.5 = half speed)
+        source.playbackRate.value = 0.1;
+        
+        // Apply additional pitch adjustment if set
+        if (appState.audio.pitchFactor !== 1.0) {
+            source.playbackRate.value *= appState.audio.pitchFactor;
+        }
         
         source.connect(appState.audio.gainNode);
         
@@ -877,333 +896,6 @@ console.log('🔵 Handling socket message:', data,data.type);
                 chatMessages.appendChild(errorDiv);
                 break;
 
-            default:
-                logMessage(`Unhandled message type: ${data.type}`, 'debug');
-        }
-    } catch (error) {
-        logMessage(`Message handling error: ${error.message}`, 'error');
-        console.error('Message handling error:', error);
-    }
-}
-
-// Chat event handlers
-function handleChatStarted(data) {
-    appState.currentConnection = {
-        chatId: data.chatId,
-        assistantId: data.assistantId,
-        assistantName: data.assistantName
-    };
-
-    // Update UI
-    document.getElementById('chat-title').textContent = `${data.assistantName} Chat`;
-    document.getElementById('connection-details').textContent = `Chat ID: ${data.chatId}`;
-    document.getElementById('active-connection').classList.remove('d-none');
-    document.getElementById('status').textContent = 'Connected';
-    document.getElementById('status').className = 'badge bg-success';
-
-    // Hide assistants list
-    document.querySelector('.panel').style.display = 'none';
-}
-
-function handleChatEnded(data) {
-    // Clean up audio
-    if (appState.audio.mediaHandler) {
-        appState.audio.mediaHandler.stopRecording('audio');
-    }
-
-    // Reset connection state
-    appState.currentConnection = null;
-
-    // Update UI
-    document.getElementById('active-connection').classList.add('d-none');
-    document.getElementById('status').textContent = 'Disconnected';
-    document.getElementById('status').className = 'badge bg-secondary';
-    document.querySelector('.panel').style.display = 'block';
-
-    logMessage('Chat ended', 'info');
-}
-
-async function initializeAudio() {
-    try {
-        if (!navigator.mediaDevices) {
-            logMessage('MediaDevices API not available - this browser might not be secure or lacks permission', 'error');
-            return false;
-        }
-
-        // Create MediaHandler if it doesn't exist
-        if (!appState.audio.mediaHandler) {
-            appState.audio.mediaHandler = new MediaHandler();
-        }
-
-        // Initialize audio context for playback
-        appState.audio.context = new (window.AudioContext || window.webkitAudioContext)();
-        appState.audio.gainNode = appState.audio.context.createGain();
-        appState.audio.gainNode.connect(appState.audio.context.destination);
-
-        logMessage('Audio system initialized successfully', 'info');
-        return true;
-
-    } catch (error) {
-        logMessage(`Audio setup error: ${error.message}`, 'error');
-        console.error('Audio setup error:', error);
-        return false;
-    }
-}
-
-function reconnectToAssistant() {
-    if (!appState.currentConnection) {
-        logMessage('No active connection to reconnect', 'error');
-        return;
-    }
-
-    logMessage('Attempting to reconnect...', 'info');
-    
-    // Close existing connection if any
-    if (appState.audio.socket && appState.audio.socket.readyState === WebSocket.OPEN) {
-        appState.audio.socket.close();
-    }
-
-    // Reconnect with same assistant
-    connectToAssistant(appState.currentConnection.assistantId);
-}
-
-// Update initial UI state for mic
-
-    const micButton = document.getElementById('toggle-mic');
-    const micStatus = document.getElementById('mic-status');
-    if (micButton) {
-        micButton.classList.remove('btn-outline-primary');
-        micButton.classList.add('btn-outline-danger');
-        micButton.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-    }
-    if (micStatus) {
-        micStatus.textContent = 'Mic: Muted';
-    }
-
-
-// Audio handling
-class AudioHandler {
-    constructor() {
-        // Use the shared AudioContext from appState
-        this.audioContext = appState.audio.context;
-        this.gainNode = appState.audio.gainNode;
-        this.audioQueue = [];
-        this.isPlaying = false;
-        this.currentBuffer = null;
-        this.currentResponse = null;
-    }
-
-    // Convert g711_ulaw to PCM
-    ulaw2linear(ulawByte) {
-        const BIAS = 0x84;
-        const CLIP = 32635;
-        const exp_lut = [0, 132, 396, 924, 1980, 4092, 8316, 16764];
-        
-        ulawByte = ~ulawByte;
-        let sign = (ulawByte & 0x80) ? -1 : 1;
-        let exponent = (ulawByte >> 4) & 0x07;
-        let mantissa = ulawByte & 0x0F;
-        let sample = exp_lut[exponent] + (mantissa << (exponent + 3));
-        
-        return sign * (sample - BIAS);
-    }
-
-    async processAudioMessage(message) {
-        try {
-            // Track current response
-            if (this.currentResponse !== message.response_id) {
-                this.currentResponse = message.response_id;
-                this.currentBuffer = null;
-            }
-
-            // Decode base64 to bytes
-            const rawData = atob(message.data);
-            const bytes = new Uint8Array(rawData.length);
-            for (let i = 0; i < rawData.length; i++) {
-                bytes[i] = rawData.charCodeAt(i);
-            }
-
-            // Convert ulaw to PCM
-            const pcmData = new Int16Array(bytes.length);
-            for (let i = 0; i < bytes.length; i++) {
-                pcmData[i] = this.ulaw2linear(bytes[i]);
-            }
-
-            // Create audio buffer (g711_ulaw is always 8kHz mono)
-            const audioBuffer = this.audioContext.createBuffer(1, pcmData.length, 8000);
-            const channelData = audioBuffer.getChannelData(0);
-            
-            // Convert Int16 to Float32 (-1.0 to 1.0)
-            for (let i = 0; i < pcmData.length; i++) {
-                channelData[i] = pcmData[i] / 32768.0;
-            }
-
-            // Queue the audio
-            this.audioQueue.push(audioBuffer);
-            
-            // Start playing if not already playing
-            if (!this.isPlaying) {
-                await this.playNextInQueue();
-            }
-        } catch (error) {
-            console.error('Error processing audio:', error);
-            logMessage(`Audio processing error: ${error.message}`, 'error');
-        }
-    }
-
-    async playNextInQueue() {
-        if (this.audioQueue.length === 0) {
-            this.isPlaying = false;
-            return;
-        }
-
-        this.isPlaying = true;
-        const audioBuffer = this.audioQueue.shift();
-
-        return new Promise((resolve) => {
-            const source = this.audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            
-            // Apply pitch control if set
-            if (appState.audio.pitchFactor !== 1.0) {
-                source.playbackRate.value = appState.audio.pitchFactor;
-            }
-
-            // Connect through the shared gain node
-            source.connect(this.gainNode);
-            
-            source.onended = () => {
-                this.playNextInQueue();
-                resolve();
-            };
-            
-            source.start(0);
-        });
-    }
-}
-
-// Initialize audio handler
-let audioHandler = null;
-initializeAudio().then(() => {
-    audioHandler = new AudioHandler();
-});
-
-
-/*
-// WebSocket message handling
-socket.onmessage = async function(event) {
-    const message = JSON.parse(event.data);
-    console.log('📥 Received: ', message);
-
-    switch (message.type) {
-        case 'audio':
-            await audioHandler.processAudioMessage(message);
-            break;
-        // ... rest of the message handling
-    }
-};
-*/
-// State management
-let currentResponseId = null;
-let audioBuffers = new Map(); // Store audio chunks by response_id
-let transcripts = new Map();  // Store transcripts by response_id
-let isAssistantResponding = false;
-
-function updateConnectionStatus(data) {
-    const statusEl = document.getElementById('status');
-    if (statusEl) {
-        const isConnected = data.session_id && data.model;
-        statusEl.textContent = isConnected ? 'Connected' : 'Disconnected';
-        statusEl.className = `badge ${isConnected ? 'bg-success' : 'bg-secondary'}`;
-        
-        if (isConnected) {
-            showChat();
-        }
-    }
-}
-
-function handleSessionUpdate(data) {
-    console.log('Session update:', data);
-    updateConnectionStatus(data);
-}
-
-function showChat() {
-    const activeConnection = document.getElementById('active-connection');
-    if (activeConnection) {
-        activeConnection.classList.remove('d-none');
-        activeConnection.style.display = 'block';
-        
-        // Hide assistants list
-        const panel = document.querySelector('.panel');
-        if (panel) {
-            panel.style.display = 'none';
-        }
-    }
-}
-
-// Keep track of transcripts by response ID
-const transcriptBuffers = new Map();
-
-function handleMessage(event) {
-    try {
-        const data = JSON.parse(event.data);
-        console.log('📥 Received message:', data);
-
-        switch (data.type) {
-            case 'assistant_text_delta':
-                // Handle incremental text updates
-                addMessageToChat('Assistant', data.data.delta, 'text', 'received', true);
-                break;
-
-            case 'assistant_audio_delta':
-                // Queue audio chunk for playback
-                if (!appState.audio.isSpeakerMuted) {
-                    playAudioMessage(data.data.delta);
-                }
-                // Create or update message container
-                const container = createMessageContainer(data.data.response_id);
-                const audioContainer = container.querySelector('.audio-container');
-                if (audioContainer) {
-                    const playButton = audioContainer.querySelector('.play-button');
-                    const audioStatus = audioContainer.querySelector('.audio-status');
-                    playButton.classList.remove('d-none');
-                    audioStatus.textContent = 'Receiving audio...';
-                }
-                break;
-
-            case 'assistant_audio_transcript_delta':
-                // Handle incremental transcript updates
-                const transcriptDelta = data.data.delta;
-                if (!transcriptBuffers.has(data.data.response_id)) {
-                    transcriptBuffers.set(data.data.response_id, '');
-                }
-                const currentTranscript = transcriptBuffers.get(data.data.response_id) + transcriptDelta;
-                transcriptBuffers.set(data.data.response_id, currentTranscript);
-                updateTranscriptDisplay(data.data.response_id, currentTranscript);
-                break;
-
-            case 'assistant_audio_transcript':
-                // Handle complete transcript
-                const transcript = data.data.transcript;
-                transcriptBuffers.set(data.data.response_id, transcript);
-                updateTranscriptDisplay(data.data.response_id, transcript);
-                break;
-
-            case 'assistant_response_complete':
-                // Handle response completion
-                handleResponseComplete(data.data);
-                break;
-
-            case 'response.created':
-                // Handle new response creation
-                handleResponseCreated(data.data);
-                break;
-
-            case 'error':
-                // Handle errors
-                logMessage(`Error from server: ${data.data.error}`, 'error');
-                break;
-
             case 'session_update':
                 // Handle session updates
                 handleSessionUpdate(data.data);
@@ -1214,7 +906,6 @@ function handleMessage(event) {
                 handleConversationUpdate(data.data);
                 break;
 
-
             case 'function_call_output':
                 handleFunctionCallOutput(data.data);
                 break;
@@ -1223,8 +914,64 @@ function handleMessage(event) {
                 handleFunctionCall(data.data);
                 break;
 
+            case 'media_data':
+                // Handle media data messages
+                if (data.encoding === 'audio/x-mulaw') {
+                    console.log('Processing media_data message:', {
+                        sample_rate: data.sample_rate,
+                        channels: data.channels,
+                        data_length: data.data.length
+                    });
+                    
+                    // Convert ulaw to PCM and play
+                    const rawData = atob(data.data);
+                    console.log('Decoded base64 data length:', rawData.length);
+                    
+                    const bytes = new Uint8Array(rawData.length);
+                    for (let i = 0; i < rawData.length; i++) {
+                        bytes[i] = rawData.charCodeAt(i);
+                    }
+
+                    // Convert ulaw to PCM
+                    const pcmData = new Int16Array(bytes.length);
+                    for (let i = 0; i < bytes.length; i++) {
+                        pcmData[i] = ulaw2linear(bytes[i]);
+                    }
+                    console.log('Converted to PCM, length:', pcmData.length);
+
+                    // Create audio buffer with correct sample rate
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('Created audio context, sample rate:', audioContext.sampleRate);
+                    
+                    const audioBuffer = audioContext.createBuffer(1, pcmData.length, data.sample_rate || 8000);
+                    const channelData = audioBuffer.getChannelData(0);
+                    
+                    // Convert Int16 to Float32 (-1.0 to 1.0)
+                    for (let i = 0; i < pcmData.length; i++) {
+                        channelData[i] = pcmData[i] / 32768.0;
+                    }
+
+                    // Play the audio
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(audioContext.destination);
+                    
+                    // Add error handling for playback
+                    source.onended = () => {
+                        console.log('Audio playback completed');
+                    };
+                    
+                    try {
+                        source.start(0);
+                        console.log('Started audio playback');
+                    } catch (error) {
+                        console.error('Error starting audio playback:', error);
+                    }
+                }
+                break;
+
             default:
-                console.log('Unhandled message type:', data.type,data);
+                logMessage(`Unhandled message type: ${data.type}`, 'debug');
                 break;
         }
     } catch (error) {

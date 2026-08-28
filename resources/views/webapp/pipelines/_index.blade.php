@@ -866,13 +866,25 @@ function attachStageEventListeners(stagesList) {
     }
     function loadStagesForSuccessStage(pipelineId) {
         const stagesSelect = document.getElementById('stage-success-stage');
-        const pipeline = appState.data.pipelines.find(p => p.id === pipelineId);
+        const pipeline = appState.data.pipelines.find(p => p.id === parseInt(pipelineId));
+
+        if (!pipeline) {
+            console.error('Pipeline not found:', pipelineId);
+            stagesSelect.innerHTML = '<option value="">None</option>';
+            return;
+        }
 
         stagesSelect.innerHTML = `<option value="">None</option>` +
             pipeline.stages.map(stage => `<option value="${stage.id}">${stage.name}</option>`).join('');
     }
     function loadToolsForStage(stageId) {
         const toolsSelect = document.getElementById('stage-available-tools');
+        if (!appState.data.tools) {
+            console.error('Tools not found in appState');
+            toolsSelect.innerHTML = '<option value="">No tools available</option>';
+            return;
+        }
+        
         toolsSelect.innerHTML = appState.data.tools
             .map(tool => `<option value="${tool.id}">${tool.name}</option>`)
             .join('');

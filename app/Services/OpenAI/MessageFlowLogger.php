@@ -201,14 +201,25 @@ class MessageFlowLogger
 
     public function logDrop($from, $data, $reason)
     {
+        $context = is_array($data) ? $data : ['raw_data' => $data];
+        
         $message = sprintf(
-            "[%s] %s ⟶ DROPPED | %s | Reason: %s",
+            "[%s] %s ⟶ DROPPED | %s | Reason: %s\nContext: %s",
             substr($this->chatId, 0, 8),
             str_pad($from, 10),
-            $this->extractMessageInfo($data),
-            $reason
+            $this->extractMessageInfo($context),
+            $reason,
+            json_encode($context, JSON_PRETTY_PRINT)
         );
+        
+        // Log to both debug and error for better visibility
         $this->logger->debug($message);
+        Log::error("Message dropped", [
+            'from' => $from,
+            'chat_id' => $this->chatId,
+            'reason' => $reason,
+            'context' => $context
+        ]);
     }
 
     public function logPass($from, $to, $data)
@@ -219,14 +230,20 @@ class MessageFlowLogger
             $this->extractMessageInfo($data)
         );
         
+        // Enhanced error handling
+        if (isset($data['type']) && ($data['type'] === 'error' || strpos($data['type'], 'error') !== false)) {
+            $this->logError($data);
+            return;
+        }
+        
         // Special handling for session and tool updates
         if (isset($data['type'])) {
             switch ($data['type']) {
                 case 'session.update':
                     $this->logSessionUpdate($data);
                     break;
-                case 'error':
-                    $this->logError($data);
+                case 'unknown':
+                    $this->logUnknownMessage($data);
                     break;
             }
         }
@@ -237,17 +254,49 @@ class MessageFlowLogger
     private function logError($data)
     {
         $errorInfo = [
+            str_repeat("=", 80),
             "❌ ERROR DETAILS",
-            "Type: " . ($data['error']['type'] ?? 'unknown'),
-            "Code: " . ($data['error']['code'] ?? 'unknown'),
-            "Message: " . ($data['error']['message'] ?? 'No message provided'),
+            str_repeat("-", 40)
         ];
 
-        if (isset($data['error']['param'])) {
-            $errorInfo[] = "Parameter: " . $data['error']['param'];
+        // Add basic error info
+        $errorInfo[] = "Type: " . ($data['error']['type'] ?? $data['type'] ?? 'unknown');
+        $errorInfo[] = "Code: " . ($data['error']['code'] ?? 'unknown');
+        $errorInfo[] = "Message: " . ($data['error']['message'] ?? $data['message'] ?? 'No message provided');
+
+        // Add parameter if present
+        if (isset($data['error']['param']) || isset($data['param'])) {
+            $errorInfo[] = "Parameter: " . ($data['error']['param'] ?? $data['param']);
         }
 
+        // Add event info if present
+        if (isset($data['event_id'])) {
+            $errorInfo[] = "Event ID: " . $data['event_id'];
+        }
+
+        // Add full data context
+        $errorInfo[] = "\nFull Error Context:";
+        $errorInfo[] = json_encode($data, JSON_PRETTY_PRINT);
+
+        // Add stack trace if available
+        if (isset($data['error']['stack']) || isset($data['stack'])) {
+            $errorInfo[] = "\nStack Trace:";
+            $errorInfo[] = $data['error']['stack'] ?? $data['stack'];
+        }
+
+        $errorInfo[] = str_repeat("=", 80);
+
+        // Log at error level and also to separate error log file
         $this->logger->error(implode("\n", $errorInfo));
+        
+        // Also log to Laravel's error log
+        Log::error("MessageFlow Error", [
+            'chat_id' => $this->chatId,
+            'error_type' => $data['error']['type'] ?? $data['type'] ?? 'unknown',
+            'error_code' => $data['error']['code'] ?? 'unknown',
+            'error_message' => $data['error']['message'] ?? $data['message'] ?? 'No message provided',
+            'full_context' => $data
+        ]);
     }
 
     private function formatSingleLine($from, $to, $info)
@@ -261,53 +310,54 @@ class MessageFlowLogger
         );
     }
 
-    private function extractMessageInfo($fromData, $toData = null)
+    private function extractMessageInfo($data, $toData = null)
     {
         $info = [];
         
+        // Add client type if available
+        if (isset($data['client_type'])) {
+            $info[] = "Client: " . $data['client_type'];
+        }
+
         // Extract type
-        if (isset($toData['type'])) {
-            $info[] = "Type: " . $toData['type'];
-        } elseif (isset($fromData['type'])) {
-            $info[] = "Type: " . $fromData['type'];
+        if (isset($data['type'])) {
+            $info[] = "Type: " . $data['type'];
         }
 
-        // Extract event info
-        if (isset($toData['event']['type']) || isset($fromData['event']['type'])) {
-            $info[] = "Event: " . ($toData['event']['type'] ?? $fromData['event']['type']);
+        // Extract message details
+        if (isset($data['data'])) {
+            if (is_array($data['data'])) {
+                $info[] = "Data: " . json_encode($data['data']);
+            } else {
+                $info[] = "Data length: " . strlen($data['data']);
+            }
         }
 
-        // Extract role
-        if (isset($toData['item']['role']) || isset($fromData['item']['role'])) {
-            $info[] = "Role: " . ($toData['item']['role'] ?? $fromData['item']['role']);
-        }
-
-        // Extract status
-        if (isset($toData['item']['status']) || isset($fromData['item']['status'])) {
-            $info[] = "Status: " . ($toData['item']['status'] ?? $fromData['item']['status']);
-        }
-
-        // For audio messages, just note presence
-        if (isset($fromData['audio']) || isset($toData['audio'])) {
-            $info[] = "Audio: present";
-            return implode(" | ", $info);
-        }
-
-        // For audio deltas, just note size
-        if (isset($fromData['delta']) && (isset($fromData['type']) && $fromData['type'] === 'response.audio.delta')) {
-            $info[] = "Audio delta: " . strlen($fromData['delta']) . " bytes";
-            return implode(" | ", $info);
-        }
-
-        // Extract text content if present (truncated)
-        if (isset($fromData['content'])) {
-            $text = is_string($fromData['content']) ? $fromData['content'] : json_encode($fromData['content']);
-            $info[] = "Text: " . substr($text, 0, 30);
-        } elseif (isset($toData['content'])) {
-            $text = is_string($toData['content']) ? $toData['content'] : json_encode($toData['content']);
-            $info[] = "Text: " . substr($text, 0, 30);
+        // Add any error information
+        if (isset($data['error'])) {
+            $info[] = "Error: " . $data['error'];
         }
 
         return implode(" | ", $info);
+    }
+
+    // Add new method to handle unknown messages
+    private function logUnknownMessage($data)
+    {
+        $unknownInfo = [
+            str_repeat("=", 80),
+            "⚠️ UNKNOWN MESSAGE TYPE",
+            str_repeat("-", 40),
+            "Received Data:",
+            json_encode($data, JSON_PRETTY_PRINT),
+            str_repeat("=", 80)
+        ];
+        
+        $this->logger->warning(implode("\n", $unknownInfo));
+        
+        Log::warning("Unknown Message Type in MessageFlow", [
+            'chat_id' => $this->chatId,
+            'data' => $data
+        ]);
     }
 } 

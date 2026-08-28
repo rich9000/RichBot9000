@@ -56,7 +56,7 @@
 <script>
     let currentProjectId = '{{ $projectId }}';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    
         loadProjectDetails(currentProjectId);
         loadTasks(currentProjectId);
 
@@ -85,7 +85,7 @@
                 deleteProject(currentProjectId);
             }
         });
-    });
+    
 
     function loadProjectDetails(projectId) {
         fetch(`/api/projects/${projectId}`, {

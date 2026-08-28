@@ -1,0 +1,145 @@
+class AudioRecorder {
+    private string $chatId;
+    private string $streamSid;
+    private array $audioBuffers = [];
+    private $wavFile = null;
+    
+    public function __construct(string $chatId, string $streamSid) {
+        $this->chatId = $chatId;
+        $this->streamSid = $streamSid;
+    }
+
+    public function saveAudioChunk(string $audioData, string $direction, string $format = 'pcm16'): void 
+    {
+        try {
+            $timestamp = date('Y-m-d_H-i-s');
+            $directory = storage_path("app/audio_recordings/{$this->chatId}/{$this->streamSid}/{$direction}");
+            
+            if (!file_exists($directory)) {
+                mkdir($directory, 0755, true);
+            }
+
+            // Store in buffer first
+            if (!isset($this->audioBuffers[$direction])) {
+                $this->audioBuffers[$direction] = '';
+                
+                // Create WAV file if it doesn't exist
+                $wavPath = "{$directory}/conversation.wav";
+                $this->createWavFile($wavPath, $format === 'pcm16' ? 24000 : 8000);
+            }
+
+            // Add to buffer
+            $this->audioBuffers[$direction] .= $audioData;
+
+            // Write to WAV file
+            $this->appendToWavFile($audioData, $direction, $format);
+
+            // Also save individual chunk for debugging
+            $chunkPath = "{$directory}/chunks";
+            if (!file_exists($chunkPath)) {
+                mkdir($chunkPath, 0755, true);
+            }
+            
+            $filename = "{$chunkPath}/{$timestamp}_" . uniqid() . ".raw";
+            file_put_contents($filename, $audioData);
+
+            Log::debug("Saved audio chunk", [
+                'direction' => $direction,
+                'format' => $format,
+                'chunk_size' => strlen($audioData),
+                'total_buffer' => strlen($this->audioBuffers[$direction])
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Error saving audio chunk", [
+                'error' => $e->getMessage(),
+                'direction' => $direction,
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    private function createWavFile(string $path, int $sampleRate): void 
+    {
+        $this->wavFile = fopen($path, 'wb');
+        
+        // WAV header
+        $header = pack(
+            'c4Vc4c4VvvVVvvc4V',
+            'R', 'I', 'F', 'F',    // RIFF chunk
+            36,                     // Chunk size (will update later)
+            'W', 'A', 'V', 'E',    // WAVE identifier
+            'f', 'm', 't', ' ',    // fmt chunk
+            16,                     // fmt chunk size
+            1,                      // Audio format (PCM)
+            1,                      // Num channels (mono)
+            $sampleRate,            // Sample rate
+            $sampleRate * 2,        // Byte rate
+            2,                      // Block align
+            16,                     // Bits per sample
+            'd', 'a', 't', 'a',    // data chunk
+            0                       // Data chunk size (will update)
+        );
+        
+        fwrite($this->wavFile, $header);
+    }
+
+    private function appendToWavFile(string $audioData, string $direction, string $format): void 
+    {
+        if (!$this->wavFile) return;
+
+        if ($format === 'ulaw') {
+            // Convert μ-law to PCM16 if needed
+            $audioData = $this->convertUlawToPcm16($audioData);
+        }
+
+        // Write audio data
+        fwrite($this->wavFile, $audioData);
+
+        // Update WAV header sizes
+        $fileSize = ftell($this->wavFile);
+        $dataSize = $fileSize - 44;  // 44 is WAV header size
+        
+        fseek($this->wavFile, 4);
+        fwrite($this->wavFile, pack('V', $fileSize - 8));
+        
+        fseek($this->wavFile, 40);
+        fwrite($this->wavFile, pack('V', $dataSize));
+        
+        fseek($this->wavFile, $fileSize);  // Return to end of file
+    }
+
+    private function convertUlawToPcm16(string $ulawData): string 
+    {
+        $pcm16 = '';
+        $length = strlen($ulawData);
+        
+        for ($i = 0; $i < $length; $i++) {
+            $sample = $this->mulawToLinear(ord($ulawData[$i]));
+            $pcm16 .= pack('s', $sample);
+        }
+        
+        return $pcm16;
+    }
+
+    private function mulawToLinear(int $ulawByte): int 
+    {
+        $BIAS = 0x84;
+        $exp_lut = [0, 132, 396, 924, 1980, 4092, 8316, 16764];
+        
+        $ulawByte = ~$ulawByte;
+        $sign = ($ulawByte & 0x80) ? -1 : 1;
+        $exponent = ($ulawByte >> 4) & 0x07;
+        $mantissa = $ulawByte & 0x0F;
+        $sample = $exp_lut[$exponent] + ($mantissa << ($exponent + 3));
+        
+        return $sign * ($sample - $BIAS);
+    }
+
+    public function __destruct() 
+    {
+        if ($this->wavFile) {
+            fclose($this->wavFile);
+        }
+    }
+}

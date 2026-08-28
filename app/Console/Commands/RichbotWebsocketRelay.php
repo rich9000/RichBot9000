@@ -9,16 +9,24 @@ use React\Socket\Connector as ReactConnector;
 use Illuminate\Support\Facades\Log;
 use App\Services\OpenAI\RealtimeMessageHandler;
 use App\Models\Assistant;
+use App\Services\Logging\OpenAILogger;
 
 class RichbotWebsocketRelay extends Command
 {
-    protected $signature = 'richbot:websocket-relay {chat_id} {assistant_id}';
+    protected $signature = 'richbot:websocket-relay {chat_id} {assistant_id} {--client_type=webclient} {--stream_sid=null}';
     protected $description = 'Start a WebSocket relay between OpenAI and Richbot';
+
+    // Add this property to track last message time
+    private $lastMessageTime;
 
     public function handle()
     {
         $chatId = $this->argument('chat_id');
         $assistantId = $this->argument('assistant_id');
+        $clientType = $this->option('client_type'); // Will default to 'webclient'
+        $streamSid = $this->option('stream_sid');
+
+        
         $assistant = Assistant::find($assistantId);
 
         if (!$assistant) {
@@ -26,57 +34,21 @@ class RichbotWebsocketRelay extends Command
             return;
         }
 
-        // Log assistant details
-        Log::info("Richbot Relay: Assistant loaded", [
-            'assistant_id' => $assistantId,
-            'name' => $assistant->name,
-            'tool_count' => $assistant->tools->count()
-        ]);
-
-        // Log each tool's configuration
-        foreach ($assistant->tools as $tool) {
-            Log::info("Tool configuration", [
-                'name' => $tool->name,
-                'description' => $tool->description ?: 'No description',
-                'parameter_count' => $tool->toolParameters->count(),
-                'parameters' => $tool->toolParameters->map(function($param) {
-                    return [
-                        'name' => $param->name,
-                        'type' => $param->type,
-                        'description' => $param->description,
-                        'required' => $param->required
-                    ];
-                })
-            ]);
-        }
-
-        $messageHandler = new RealtimeMessageHandler(null, null, null);
-        $messageHandler->setAssistant($assistant);
-        $initialConfig = $messageHandler->getInitialSessionConfig($assistant);
-
-        //$initialConfigTxt = json_encode($initialConfig,true,256);
-        //echo $initialConfigTxt;
-        //exit;                                                               
-        
-        // Log the final configuration
-        Log::info("Initial session configuration", [
-            'event_id' => $initialConfig['event_id'],
-            'tool_count' => count($initialConfig['session']['tools'] ?? []),
-            'tools' => array_map(function($tool) {
-                return [
-                    'name' => $tool['function']['name'] ?? 'unnamed',
-                    'parameter_count' => count($tool['function']['parameters']['properties'] ?? []),
-                    'required_params' => $tool['function']['parameters']['required'] ?? []
-                ];
-            }, $initialConfig['session']['tools'] ?? [])
-        ]);
-
-        Log::info("Richbot Relay: Starting WebSocket relay " . $assistant->name, [
+        // Log connection details including client type
+        Log::info("Richbot Relay: Starting connection", [
             'chat_id' => $chatId,
-            'assistant_id' => $assistantId
+            'assistant_id' => $assistantId,
+            'client_type' => $clientType,
+            'assistant_name' => $assistant->name,
+            'stream_sid' => $streamSid
         ]);
 
-        
+        // Pass client type to message handler
+        $messageHandler = new RealtimeMessageHandler(null, null, $chatId, $clientType);
+        $messageHandler->setAssistant($assistant);
+        $messageHandler->setStreamSid($streamSid);
+
+        $initialConfig = $messageHandler->getInitialSessionConfig($assistant);
 
         $loop = Factory::create();
         $connector = new Connector($loop, new ReactConnector($loop, [
@@ -88,16 +60,19 @@ class RichbotWebsocketRelay extends Command
         ]));
 
         // Connect to Richbot
-        $richbotUrl = "wss://richbot9000.local:9501/relay/{$chatId}/{$assistantId}";
+        $richbotUrl = "wss://".config('app.domain').":".config('app.ws_port')."/relay/{$chatId}/{$assistantId}";
+        // Connect to Richbot
+        //$richbotUrl = "wss://richbot9000.local:9501/relay/{$chatId}/{$assistantId}";
         $connector($richbotUrl)
-            ->then(function($richbotConn) use ($loop, $chatId, $assistantId, $connector, $assistant, $initialConfig, $messageHandler) {
-                Log::info("Richbot Relay: Connected to Richbot WebSocket");
+            ->then(function($richbotConn) use ($loop, $chatId, $assistantId, $connector, $assistant, $initialConfig, $messageHandler, $clientType) {
+                Log::info("Richbot Relay: Connected to Richbot WebSocket", [
+                    'client_type' => $clientType,
+                    'chat_id' => $chatId
+                ]);
 
-                $messageHandler = new RealtimeMessageHandler($richbotConn, null, $chatId);
+               // $messageHandler = new RealtimeMessageHandler($richbotConn, null, $chatId, $clientType);
                 $messageHandler->setRichbotConnection($richbotConn);
-                $messageHandler->setChatId($chatId);
-                $messageHandler->setAssistant($assistant);
-               
+                      
                 // Connect to OpenAI
                 $openaiUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
                 $openaiHeaders = [
@@ -108,58 +83,122 @@ class RichbotWebsocketRelay extends Command
                 Log::info("Richbot Relay: Connecting to OpenAI WebSocket");
 
                 $connector($openaiUrl, [], $openaiHeaders)
-                    ->then(function($openaiConn) use ($richbotConn, $chatId, $loop, $messageHandler, $initialConfig) {
+                    ->then(function($openaiConn) use ($richbotConn, $chatId, $loop, $messageHandler, $initialConfig, $clientType) {
+                        // Initialize last message time
+                        $this->lastMessageTime = time();
+
+                        // Add inactivity checker timer
+                        $loop->addPeriodicTimer(2, function() use ($openaiConn) {
+                            $timeSinceLastMessage = time() - $this->lastMessageTime;
+                            if ($timeSinceLastMessage >= 10) {
+                                try {
+                                    $openaiConn->send(json_encode(['type' => 'response.create']));
+                                    Log::debug("Sent response.create due to inactivity", [
+                                        'seconds_inactive' => $timeSinceLastMessage
+                                    ]);
+                                } catch (\Exception $e) {
+                                    Log::error("Failed to send inactivity response.create", [
+                                        'error' => $e->getMessage()
+                                    ]);
+                                }
+                                // Reset timer after sending
+                                $this->lastMessageTime = time();
+                            }
+                        });
+
                         Log::info("Richbot Relay: Connected to OpenAI WebSocket");
 
                         // Update the message handler with both connections
                         $messageHandler->setOpenAIConnection($openaiConn);
 
-                        Log::info("Richbot Relay: Sending initial session configuration", ['config' => $initialConfig]);
+                        Log::info("Richbot Relay: Sending initial session configuration");
 
-                        // Send initial session configuration
-                        $openaiConn->send(json_encode($initialConfig,JSON_PRETTY_PRINT,256));
-                        $openaiConn->send(json_encode(['type' => 'response.create']));
-
-                        $richbotConn->on('message', function($msg) use ($openaiConn, $messageHandler) {
+                        
+                        $richbotConn->on('message', function($msg) use ($openaiConn, $messageHandler, $clientType, $chatId) {
+                            $this->lastMessageTime = time();
                             try {
                                 $message = json_decode($msg, true);
+                                
+                                // Add detailed message structure logging
+                                Log::debug("Raw message received", [
+                                    'chat_id' => $chatId,
+                                    'type' => $message['type'] ?? 'unknown',
+                                    'data_structure' => json_encode($message),
+                                    'client_type' => $clientType
+                                ]);
+
+                                if ($message && $message['type'] === 'audio') {
+                                    Log::debug("Audio message details", [
+                                        'chat_id' => $chatId,
+                                        'data_type' => gettype($message['data']),
+                                        'data_keys' => is_array($message['data']) ? array_keys($message['data']) : 'not_array',
+                                        'data_preview' => substr(json_encode($message['data']), 0, 100) . '...'
+                                    ]);
+                                }
+
+                                if (!$message) {
+                                    Log::warning("Received invalid message format", [
+                                        'chat_id' => $chatId,
+                                        'raw_message' => $msg
+                                    ]);
+                                    return;
+                                }
+
+                                // Add specific handling for audio messages
+                                if ($message['type'] === 'audio') {
+                                    Log::debug("Processing audio message", [
+                                        'chat_id' => $chatId,
+                                        'data_type' => gettype($message['data']),
+                                        'data_structure' => is_array($message['data']) ? array_keys($message['data']) : 'not_array',
+                                        'data_length' => is_array($message['data']) && isset($message['data']['data']) ? 
+                                            strlen($message['data']['data']) : 
+                                            (is_string($message['data']) ? strlen($message['data']) : 0)
+                                    ]);
+                                }
+
                                 $clientMessage = $messageHandler->createClientMessage(
                                     $message['type'] ?? '',
                                     $message['data'] ?? null
                                 );
                                 
+                                // Log the created message before sending
+                                Log::debug("Created client message", [
+                                    'chat_id' => $chatId,
+                                    'original_type' => $message['type'] ?? '',
+                                    'created_type' => $clientMessage['type'] ?? 'none',
+                                    'has_audio' => isset($clientMessage['audio'])
+                                ]);
+
                                 if ($clientMessage) {
                                     $openaiConn->send(json_encode($clientMessage));
                                 }
                             } catch (\Exception $e) {
-                                Log::error("Richbot Relay: Error processing Richbot message", [
-                                    'error' => $e->getMessage()
+                                Log::error("Error processing relay message", [
+                                    'error' => $e->getMessage(),
+                                    'trace' => $e->getTraceAsString(),
+                                    'original_message' => $msg,
+                                    'chat_id' => $chatId
                                 ]);
                             }
                         });
 
-                        // Handle messages from OpenAI to Richbot
-                        $openaiConn->on('message', function($msg) use ($messageHandler) {
+                        // Handle messages from OpenAI
+                        $openaiConn->on('message', function($msg) use ($messageHandler, $chatId, $clientType) {
+                            $this->lastMessageTime = time();
                             try {
-                                $msg = json_decode($msg->getPayload(), true);
+                                $message = json_decode($msg->getPayload(), true);
 
-                                if($msg['type'] === "response.audio.delta"){
-                                    Log::info("OpenAI audio delta", [
-                                        'response_id' => $msg['response_id'],
-                                        'size' => strlen($msg['delta'] ?? '')
-                                    ]);
-                                } else {
-                                    Log::info("OpenAI message", [
-                                        'type' => $msg['type'],
-                                        'event_id' => $msg['event_id'] ?? null,
-                                        'response_id' => $msg['response_id'] ?? null,
-                                        'status' => $msg['response']['status'] ?? null
-                                    ]);
-                                }
+                                // Log inbound message from OpenAI
+                                OpenAILogger::inbound($message, [
+                                    'chat_id' => $chatId,
+                                    'client_type' => $clientType
+                                ]);
 
-                                $messageHandler->handleServerEvent($msg);
+                               
+                                $messageHandler->handleServerEvent($message);
+
                             } catch (\Exception $e) {
-                                Log::error("Richbot Relay: Error processing OpenAI message", [
+                                Log::error("Error processing OpenAI message", [
                                     'error' => $e->getMessage(),
                                     'trace' => $e->getTraceAsString()
                                 ]);
@@ -173,6 +212,13 @@ class RichbotWebsocketRelay extends Command
                                     'type' => 'heartbeat',
                                     'chat_id' => $chatId
                                 ]));
+
+
+                                $openaiConn->send(json_encode(['type' => 'response.create']));
+
+
+
+
                             } catch (\Exception $e) {
                                 Log::error("Richbot Relay: Heartbeat error", [
                                     'error' => $e->getMessage()
@@ -190,6 +236,22 @@ class RichbotWebsocketRelay extends Command
                             Log::error("Richbot Relay: OpenAI connection closed");
                             $loop->stop();
                         });
+
+                        Log::info("Richbot Relay -> Sending initial session configuration", [
+                            'config' => $initialConfig,
+                            'chat_id' => $chatId,
+                            'client_type' => $clientType
+                        ]);
+
+                        // Send initial session configuration
+                        $openaiConn->send(json_encode($initialConfig));
+                        $openaiConn->send(json_encode(['type' => 'response.create']));
+
+                        // Add verification log after sending
+                        Log::info("Initial configuration sent to OpenAI", [
+                            'chat_id' => $chatId,
+                            'client_type' => $clientType
+                        ]);
 
                     }, function($e) use ($loop) {
                         Log::error("Richbot Relay: Could not connect to OpenAI", [

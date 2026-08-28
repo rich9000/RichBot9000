@@ -43,88 +43,114 @@
 
 <script>
     // Email Verification Logic
-    document.querySelector('.verify-richbot-email-button').addEventListener('click', function(e) {
-        e.preventDefault();
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('verify-richbot-email-button')) {
+            e.preventDefault();
 
-        const emailCode = document.getElementById('emailCodeInput').value;
+            // Find the input field relative to the clicked button
+            const button = e.target;
+            const card = button.closest('.card');
+            const emailCodeInput = card.querySelector('#emailCodeInput');
+            const emailCode = emailCodeInput.value;
 
-        if (!emailCode) {
-            showAlert('Please enter the email verification code.', 'warning');
-            return;
-        }
-
-        fetch('/api/verify-email', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken,
-            },
-            body: JSON.stringify({ token: emailCode }),
-        })
-        .then(response => {
-            if (response.status === 401) {
-                throw new Error('Unauthorized. Please log in again.');
+            if (!emailCode) {
+                showAlert('Please enter the email verification code.', 'warning');
+                return;
             }
-            return response.json().then(data => {
-                if (!response.ok) {
-                    throw new Error(data.error || 'Email verification failed.');
+
+            fetch('/api/verify-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': 'Bearer ' + appState.apiToken,
+                },
+                body: JSON.stringify({ token: emailCode }),
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized. Please log in again.');
                 }
-                return data;
-            });
-        })
-        .then(data => {
-            if (data.user) {
-                if (data.user.email === appState.user.email) {
+                console.log('response');
+                console.log(response.json());
+                return response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Email verification failed.');
+                    }
+                    return data;
+                });
+            })
+            .then(data => {
+
+
+                console.log('data');
+                console.log(data);
+
+                if (data.success) {
                     showAlert('Email verified successfully!', 'success');
-                    appState.user = data.user;
+                    appState.user.email_verified_at = new Date().toISOString();
                     localStorage.setItem('app_state', JSON.stringify(appState));
                     updateUserUI();
+                } else {
+                    showAlert('Invalid verification code', 'danger');
                 }
-            } else {
-                throw new Error('Invalid response from server');
-            }
-        })
-        .catch(error => {
-            console.error('Error verifying email:', error);
-            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
-        });
+
+
+
+
+
+
+
+
+
+            })
+            .catch(error => {
+                console.error('Error verifying email:', error);
+                showAlert(error.message || 'An error occurred. Please try again.', 'danger');
+            });
+        }
     });
 
     // Resend Verification Email Logic
-    document.getElementById('verificationEmailForm').addEventListener('submit', function(e) {
-        e.preventDefault();
+    document.addEventListener('submit', function(e) {
+        if (e.target.id === 'verificationEmailForm') {
+            e.preventDefault();
 
-        fetch('/api/resend-email-verification', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + appState.apiToken,
-                'Accept': 'application/json',
-            }
-        })
-        .then(response => {
-            if (response.status === 401) {
-                throw new Error('Unauthorized. Please log in again.');
-            }
-            return response.json().then(data => {
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to resend verification email.');
+            fetch('/api/resend-email-verification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + appState.apiToken,
+                    'Accept': 'application/json',
                 }
-                return data;
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    throw new Error('Unauthorized. Please log in again.');
+                }
+                return response.json().then(data => {
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to resend verification email.');
+                    }
+                    return data;
+                });
+            })
+            .then(data => {
+                showAlert(data.message || 'Verification email sent successfully.', 'success');
+                // If token is provided in response, auto-fill the input
+                if (data.token) {
+                    // Find the input field relative to the form
+                    const form = e.target;
+                    const card = form.closest('.card');
+                    const emailCodeInput = card.querySelector('#emailCodeInput');
+                    emailCodeInput.value = data.token;
+                }
+            })
+            .catch(error => {
+                console.error('Error resending verification email:', error);
+                showAlert(error.message || 'An error occurred. Please try again.', 'danger');
             });
-        })
-        .then(data => {
-            showAlert(data.message || 'Verification email sent successfully.', 'success');
-            // If token is provided in response, auto-fill the input
-            if (data.token) {
-                document.getElementById('emailCodeInput').value = data.token;
-            }
-        })
-        .catch(error => {
-            console.error('Error resending verification email:', error);
-            showAlert(error.message || 'An error occurred. Please try again.', 'danger');
-        });
+        }
     });
 
 

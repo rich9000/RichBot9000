@@ -344,7 +344,7 @@ async function connectToAssistant(assistantId) {
 
     // Create WebSocket connection
     if (!appState.audio.socket || appState.audio.socket.readyState !== WebSocket.OPEN) {
-        const wsUrl = `wss://richbot9000.local:9501/app/${encodeURIComponent(appState.apiToken)}${assistantId ? '/' + encodeURIComponent(assistantId) : ''}`;
+        const wsUrl = `${window.appConfig.wsUrl}/app/${encodeURIComponent(appState.apiToken)}${assistantId ? '/' + encodeURIComponent(assistantId) : ''}`;
         
         logMessage(`Connecting to WebSocket: ${wsUrl}`, 'info');
         appState.audio.socket = new WebSocket(wsUrl);
@@ -1143,6 +1143,7 @@ function showChat() {
 
 // Keep track of transcripts by response ID
 const transcriptBuffers = new Map();
+const textBuffers = new Map();
 
 function handleMessage(event) {
     try {
@@ -1152,7 +1153,26 @@ function handleMessage(event) {
         switch (data.type) {
             case 'assistant_text_delta':
                 // Handle incremental text updates
-                addMessageToChat('Assistant', data.data.delta, 'text', 'received', true);
+                if (!textBuffers.has(data.data.response_id)) {
+                    textBuffers.set(data.data.response_id, '');
+                }
+                const currentText = textBuffers.get(data.data.response_id) + data.data.delta;
+                textBuffers.set(data.data.response_id, currentText);
+                
+                // Update the display
+                const container = createMessageContainer(data.data.response_id);
+                const textDiv = container.querySelector('.message-text');
+                if (textDiv) {
+                    textDiv.textContent = currentText;
+                    container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+                break;
+
+            case 'assistant_response_complete':
+                // Clear the buffer when response is complete
+                if (textBuffers.has(data.data.response_id)) {
+                    textBuffers.delete(data.data.response_id);
+                }
                 break;
 
             case 'assistant_audio_delta':
@@ -1214,7 +1234,6 @@ function handleMessage(event) {
                 handleConversationUpdate(data.data);
                 break;
 
-
             case 'function_call_output':
                 handleFunctionCallOutput(data.data);
                 break;
@@ -1224,7 +1243,7 @@ function handleMessage(event) {
                 break;
 
             default:
-                console.log('Unhandled message type:', data.type,data);
+                console.log('Unhandled message type:', data.type, data);
                 break;
         }
     } catch (error) {
@@ -1443,7 +1462,7 @@ function addWavHeader(samples) {
     // file length
     view.setUint32(4, 32 + samples.length * 2, true);
     // RIFF type
-    writeString(view, 8, 'WAVE');
+    view.setUint32(8, 0x57415645, false);
     // format chunk identifier
     writeString(view, 12, 'fmt ');
     // format chunk length

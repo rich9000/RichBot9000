@@ -14,17 +14,37 @@ class RealtimeMessageHandler
     private $richbotConn;
     private $openaiConn;
     private $chatId;
+    private $clientType;
     private $currentResponse = null;
     private $functionCallBuffer = [];
     private $flowLogger;
     private $assistant;
+    private $streamSid = null;
+    private $twilioHandler;
     
-    public function __construct($richbotConn, $openaiConn, $chatId)
+    public function __construct($richbotConn, $openaiConn, $chatId=null, $clientType = 'webclient', $options = [])
     {
         $this->richbotConn = $richbotConn;
         $this->openaiConn = $openaiConn;
         $this->chatId = $chatId;
+        $this->clientType = $clientType;
         $this->flowLogger = new MessageFlowLogger($chatId);
+        
+        // Store Stream SID if provided in options
+        if (isset($options['stream_sid'])) {
+            $this->streamSid = $options['stream_sid'];
+            Log::info("Stream SID set in RealtimeMessageHandler", [
+                'chat_id' => $chatId,
+                'stream_sid' => $this->streamSid
+            ]);
+        }
+
+        if ($clientType === 'twilio_phone') {
+            $this->twilioHandler = new TwilioMessageHandler(
+                $chatId, 
+                $options['stream_sid'] ?? null
+            );
+        }
     }
 
     public function setRichbotConnection($richbotConn)
@@ -42,28 +62,44 @@ class RealtimeMessageHandler
         $this->chatId = $chatId;
     }
 
+    public function setStreamSid($streamSid)
+    {
+        $this->streamSid = $streamSid;
+    }
+
     public function setOpenAIConnection($openaiConn)
     {
         $this->openaiConn = $openaiConn;
         Log::info("OpenAI connection set in RealtimeMessageHandler", [
             'chat_id' => $this->chatId
         ]);
+
+    }
+
+    public function setClientType($clientType)
+    {
+        $this->clientType = $clientType;
+        Log::info("Client type set", [
+            'chat_id' => $this->chatId,
+            'client_type' => $clientType
+        ]);
     }
 
     public function handleServerEvent($event)
     {
+        // Add debug logging at the start
+        Log::debug("RealtimeMessageHandler received event", [
+            'type' => $event['type'] ?? 'unknown',
+            'chat_id' => $this->chatId,
+            'client_type' => $this->clientType
+        ]);
+
         // Convert Ratchet Message to array if needed
         if ($event instanceof \Ratchet\RFC6455\Messaging\Message) {
-            $originalEvent = $event;
             $event = json_decode($event->getPayload(), true);
-            $this->flowLogger->logTransformation(
-                'WEBSOCKET',
-                'HANDLER',
-                $originalEvent,
-                $event,
-                'Converted Ratchet Message to array'
-            );
         }
+
+      
 
         // Handle null or invalid JSON
         if (!is_array($event)) {
@@ -93,8 +129,6 @@ class RealtimeMessageHandler
             case 'session.updated':
                 $this->handleSessionEvent($event);
                 break;
-
-        
 
             case 'conversation.item.created':
                 $this->handleConversationItemCreated($event);
@@ -156,10 +190,18 @@ class RealtimeMessageHandler
                 break;
 
             case 'response.audio_transcript.delta':
+                Log::channel('openai_tools')->info("Response audio transcript delta event received", [
+                    'chat_id' => $this->chatId,
+                    'event' => $event
+                ]);
                 $this->handleTranscriptDelta($event);
                 break;
 
             case 'response.output_item.done':
+                Log::channel('openai_tools')->info("Response output item done event received", [
+                    'chat_id' => $this->chatId,
+                    'event' => $event
+                ]);
                 $this->handleOutputItemDone($event);
                 break;
 
@@ -290,15 +332,32 @@ class RealtimeMessageHandler
 
     private function handleAudioDelta($message)
     {
-        Log::info("Audio delta received", [
-            'response_id' => $message['response_id'],
-            'delta_length' => strlen($message['delta'] ?? '')
-        ]);
+        try {
+            if (!isset($message['delta'])) {
+                return;
+            }
 
-        $this->sendToClient('assistant_audio_delta', [
-            'delta' => $message['delta'],
-            'response_id' => $message['response_id']
-        ]);
+        
+            // Default web client handling (unchanged)
+            $audioMessage = [
+                'response_id' => $message['response_id'],
+                'delta' => $message['delta']
+            ];
+
+            Log::info("Sending assistant_audio_delta to client");
+            
+            $this->sendToClient('assistant_audio_delta', $audioMessage);
+        
+
+        } catch (\Exception $e) {
+            Log::error("Error handling audio delta", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'client_type' => $this->clientType,
+                'chat_id' => $this->chatId,
+                'stream_sid' => $this->streamSid
+            ]);
+        }
     }
 
     private function handleTranscriptDelta($message)
@@ -316,6 +375,11 @@ class RealtimeMessageHandler
             $this->functionCallBuffer[$callId] = '';
         }
         $this->functionCallBuffer[$callId] .= $message['delta'];
+
+        Log::info("Function call buffer updated", [
+            'call_id' => $callId,
+            'buffer' => $this->functionCallBuffer[$callId]
+        ]); 
     }
 
     private function handleFunctionCallComplete($message)
@@ -324,6 +388,15 @@ class RealtimeMessageHandler
         $method_name = $message['name'];
         $method_args = json_decode($message['arguments'], true);
         
+        // Add tool usage logging
+        Log::channel('openai_tools')->info("Tool called", [
+            'tool' => $method_name,
+            'arguments' => $method_args,
+            'call_id' => $callId,
+            'chat_id' => $this->chatId,
+            'client_type' => $this->clientType
+        ]);
+
         Log::info("Function call complete", [
             'call_id' => $callId,
             'name' => $method_name,
@@ -332,8 +405,10 @@ class RealtimeMessageHandler
 
         $data = null;
         $optional_objects = [
+
             new ToolExecutor(),
             new CodingExecutor()
+
         ];
 
         try {
@@ -449,35 +524,43 @@ class RealtimeMessageHandler
 
     public function createClientMessage($type, $data)
     {
-        $originalData = $data;
-        $message = null;
+        Log::debug("Creating client message", [
+            'type' => $type,
+            'data_type' => gettype($data),
+            'chat_id' => $this->chatId
+        ]);
+
+        // Handle Twilio messages
+        if ($this->clientType === 'twilio_phone') {
+            $message = $this->twilioHandler->convertToRichbotMessage([
+                'type' => $type,
+                'data' => $data
+            ]);
+            if ($message) {
+                return $message;
+            }
+        }
 
         switch ($type) {
             case 'text':
-                $message = $this->createTextMessage($data);
-                break;
+                return $this->createTextMessage($data);
             case 'audio':
-                $message = $this->createAudioMessage($data['audio'] ?? $data);
-                break;
-            case 'function_result':
-                $message = $this->createFunctionResultMessage($data);
-                break;
+                return $this->createAudioMessage($data);
+            case 'commit_audio':
+                return [
+                    'type' => 'input_audio_buffer.commit'
+                ];
+            case 'clear_audio':
+                return [
+                    'type' => 'input_audio_buffer.clear'
+                ];
             default:
-                $this->flowLogger->logDrop('MESSAGE_CREATOR', $data, "Unknown message type: {$type}");
+                Log::warning("Unknown message type", [
+                    'type' => $type,
+                    'chat_id' => $this->chatId
+                ]);
                 return null;
         }
-
-        if ($message) {
-            $this->flowLogger->logTransformation(
-                'CLIENT',
-                'OPENAI',
-                $originalData,
-                $message,
-                "Created {$type} message"
-            );
-        }
-
-        return $message;
     }
 
     private function createTextMessage($text)
@@ -499,10 +582,81 @@ class RealtimeMessageHandler
 
     private function createAudioMessage($base64Audio)
     {
-        return [
-            'type' => 'input_audio_buffer.append',
-            'audio' => $base64Audio
-        ];
+        try {
+            // Add detailed logging of the incoming data structure
+            Log::debug("Creating audio message - raw input", [
+                'chat_id' => $this->chatId,
+                'input_type' => gettype($base64Audio),
+                'input_structure' => is_array($base64Audio) ? json_encode($base64Audio) : 'not_array',
+                'array_keys' => is_array($base64Audio) ? array_keys($base64Audio) : []
+            ]);
+
+            // Extract audio data from the array structure
+            $audioData = null;
+            if (is_array($base64Audio)) {
+                // Try different possible array structures
+                if (isset($base64Audio['audio'])) {
+                    $audioData = $base64Audio['audio'];
+                } else if (isset($base64Audio['data'])) {
+                    $audioData = $base64Audio['data'];
+                } else if (isset($base64Audio[0])) {
+                    $audioData = $base64Audio[0];
+                } else {
+                    // Log the full array structure for debugging
+                    Log::error("Unexpected audio data structure", [
+                        'chat_id' => $this->chatId,
+                        'array_structure' => json_encode($base64Audio)
+                    ]);
+                    throw new \Exception("Could not find audio data in message structure");
+                }
+            } else {
+                $audioData = $base64Audio;
+            }
+
+            // Validate audio data
+            if (!$audioData) {
+                throw new \Exception("No audio data found in message");
+            }
+
+            if (!is_string($audioData)) {
+                Log::error("Invalid audio data type", [
+                    'chat_id' => $this->chatId,
+                    'found_type' => gettype($audioData),
+                    'data_preview' => substr(json_encode($audioData), 0, 100) . '...'
+                ]);
+                throw new \Exception("Invalid audio data format: " . gettype($audioData));
+            }
+
+            // Create the message
+            $message = [
+                'type' => 'input_audio_buffer.append',
+                'audio' => $audioData,
+                'event_id' => uniqid('audio_')
+            ];
+
+            Log::debug("Created audio message successfully", [
+                'chat_id' => $this->chatId,
+                'event_id' => $message['event_id'],
+                'audio_size' => strlen($audioData)
+            ]);
+
+            return $message;
+
+        } catch (\Exception $e) {
+            Log::error("Error creating audio message", [
+                'error' => $e->getMessage(),
+                'chat_id' => $this->chatId,
+                'trace' => $e->getTraceAsString(),
+                'raw_input_structure' => json_encode($base64Audio)
+            ]);
+            
+            // Notify client of error
+            $this->sendToClient('error', [
+                'message' => 'Error processing audio: ' . $e->getMessage()
+            ]);
+            
+            return null;
+        }
     }
 
     private function createFunctionResultMessage($data)
@@ -520,28 +674,44 @@ class RealtimeMessageHandler
     private function sendToClient($type, $data)
     {
         try {
+            Log::debug("Attempting to send message to client", [
+                'type' => $type,
+                'client_type' => $this->clientType,
+                'chat_id' => $this->chatId,
+                'connection_exists' => !is_null($this->richbotConn)
+            ]);
+
+            if ($this->clientType === 'twilio_phone') {
+                $message = $this->twilioHandler->convertToTwilioMessage([
+                    'type' => $type,
+                    'data' => $data
+                ],null);
+                if ($message) {
+                    $this->richbotConn->send(json_encode($message));
+                    return;
+                }
+            }
+
+            // Add regular client handling
             $message = [
                 'type' => $type,
-                'chat_id' => $this->chatId,
                 'data' => $data,
-                'timestamp' => time()
+                'chat_id' => $this->chatId
             ];
-
-            $this->flowLogger->logTransformation(
-                'HANDLER',
-                'CLIENT',
-                $data,
-                $message,
-                'Formatted message for client'
-            );
-
+            
             $this->richbotConn->send(json_encode($message));
+            
+            Log::debug("Message sent to client successfully", [
+                'type' => $type,
+                'chat_id' => $this->chatId
+            ]);
+            
         } catch (\Exception $e) {
-            $this->flowLogger->logDrop('CLIENT', $message, 'Send error: ' . $e->getMessage());
             Log::error("Error sending to client", [
                 'error' => $e->getMessage(),
                 'type' => $type,
-                'chat_id' => $this->chatId
+                'chat_id' => $this->chatId,
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
@@ -592,16 +762,19 @@ class RealtimeMessageHandler
                 'modalities' => ['text', 'audio'],
                 'instructions' => $instructions,
                 'voice' => 'sage',
-                'input_audio_format' => 'pcm16',
-                'output_audio_format' => 'pcm16',
+                'input_audio_format' => 'g711_ulaw',
+                'output_audio_format' => 'g711_ulaw',
                 'input_audio_transcription' => [
                     'model' => 'whisper-1'
                 ],
                 'turn_detection' => [
                     'type' => 'server_vad',
-                    'threshold' => 0.5,
-                    'prefix_padding_ms' => 300,
-                    'silence_duration_ms' => 500,
+                    'threshold' => 0.2,              // Lower threshold for better sensitivity
+                    'prefix_padding_ms' => 500,      // Increased to catch more of the start of speech
+                    'silence_duration_ms' => 800,    // Longer silence duration to avoid cutting off speech
+                    'suffix_padding_ms' => 500,      // Add suffix padding to catch trailing speech
+                    'speech_duration_ms' => 30000,   // Max speech segment duration (30 seconds)
+                    'min_speech_duration_ms' => 100, // Minimum duration to consider as speech
                     'create_response' => true
                 ],
                 'tools' => $tools,

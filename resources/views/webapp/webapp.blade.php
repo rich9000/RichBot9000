@@ -13,23 +13,32 @@
         https://code.jquery.com
         https://js.stripe.com
         https://maps.googleapis.com
-        https://sdk.twilio.com;
+        https://sdk.twilio.com
+        https://unpkg.com;
     connect-src 'self' 
         https://api.stripe.com
         https://hooks.stripe.com
         https://maps.googleapis.com
         https://cdn.jsdelivr.net
-        wss://richbot9000.com:9501
+        https://unpkg.com
+        wss://{{ config('app.domain') }}:{{ config('app.ws_port') }}
+        wss://{{ config('app.domain') }}:{{ config('app.ws_port_alt') }}
         wss://richbot9000.local:9501
-        https://api.richbot9000.com
-        https://notify.richbot9000.com
+        https://api.{{ config('app.domain') }}
+        https://notify.{{ config('app.domain') }}
         http://richbot9000.local:9501
         http://richbot9000.local:8080
         https://richbot9000.local
         http://localhost:8080
         http://localhost:9501
         ws://richbot9000.local:9501
-        ws://localhost:9501;
+        ws://richbot9000.local:9502
+        wss://richbot9000.local:9501
+        wss://richbot9000.local:9502
+        ws://{{ config('app.domain') }}:{{ config('app.ws_port') }}
+        ws://{{ config('app.domain') }}:{{ config('app.ws_port_alt') }}
+        ws://localhost:9501
+        ws://localhost:9502;
     media-src 'self' data: blob:;
     frame-src 'self'
         https://js.stripe.com
@@ -37,7 +46,8 @@
     style-src 'self' 'unsafe-inline'
         https://cdn.jsdelivr.net
         https://cdnjs.cloudflare.com
-        https://fonts.googleapis.com;
+        https://fonts.googleapis.com
+        https://unpkg.com;
     font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
     img-src 'self' data: https://maps.googleapis.com;
 ">
@@ -51,28 +61,88 @@
 
 
 
-    <script                src="https://code.jquery.com/jquery-3.7.1.min.js"
-
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         crossorigin="anonymous"></script>
     <script src="datatables/datatables.js"></script>
     <!-- Include Bootstrap JS from CDN -->
 
-
-
-
-
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    
     <script src="webapp_public/twilio.min.js"></script>
+    <script src="ai_easy_form/ai_easy_form.js"></script>
+    <script src="webapp_public/richbot-widget.js"></script>
+    <script src="webapp_public/richbot-display.js"></script>
+    <script src="webapp_public/survey.js"></script> 
+    <script src="webapp_public/richbot-client.js"></script> 
+    <script src="webapp_public/phone-tree-manager.js"></script>
+    <script src="webapp_public/audio-manager.js"></script>  
+    <script src="webapp_public/audio-recorder-widget.js"></script>
+    <script src="webapp_public/ConversationPathBuilder.js"></script>
+    <script src="webapp_public/ConversationPathBuilderV2.js"></script>
+    <script src="webapp_public/PhoneTreePath.js"></script>
+    <script src="webapp_public/PipelineBuilder.js"></script>
+<!-- Load base classes first -->
+<script src="webapp_public/nodes/BaseNode.js"></script>
+<script src="webapp_public/nodes/AssistantToolHandler.js"></script>
+
+<!-- Load parent node classes -->
+<script src="webapp_public/nodes/EntryNode.js"></script>
+<script src="webapp_public/nodes/ActionNode.js"></script>
+<script src="webapp_public/ActionNodeList.js"></script>
+<script src="webapp_public/nodes/DecisionNode.js"></script>
+<script src="webapp_public/nodes/DataNode.js"></script>
+
+<!-- Load specific entry nodes -->
+<script src="webapp_public/nodes/RootEntryNode.js"></script>
+<script src="webapp_public/nodes/ChatEntryNode.js"></script>
+<script src="webapp_public/nodes/TwilioInboundEntryNode.js"></script>
+<script src="webapp_public/nodes/TwilioOutboundEntryNode.js"></script>
+
+<!-- Load specific action nodes -->
+<script src="webapp_public/nodes/SayActionNode.js"></script>
+<script src="webapp_public/nodes/PlayActionNode.js"></script>
+<script src="webapp_public/nodes/AssistantActionNode.js"></script>
+<script src="webapp_public/nodes/PipelineActionNode.js"></script>
+<script src="webapp_public/nodes/PhoneTreeActionNode.js"></script>
+<script src="webapp_public/nodes/SurveyActionNode.js"></script>
+<script src="webapp_public/nodes/HangupActionNode.js"></script>
+<script src="webapp_public/nodes/VoiceMailActionNode.js"></script>
+<script src="webapp_public/nodes/TransferActionNode.js"></script>
+<script src="webapp_public/nodes/RouteActionNode.js"></script>
+<script src="webapp_public/nodes/ConversationPathActionNode.js"></script>
+<script src="webapp_public/nodes/ScriptActionNode.js"></script>
+<script src="webapp_public/nodes/WebsocketActionNode.js"></script>
+<script src="webapp_public/nodes/SMSActionNode.js"></script>
+<script src="webapp_public/nodes/EmailActionNode.js"></script>
+<script src="webapp_public/nodes/WaitActionNode.js"></script>
+<script src="webapp_public/nodes/MonitorCallActionNode.js"></script>
+<script src="webapp_public/nodes/AssistantToolActionNode.js"></script>
+
+<!-- Load specific data nodes -->
+<script src="webapp_public/nodes/OutageCheckDataNode.js"></script>
+<script src="webapp_public/nodes/CustomerLookupDataNode.js"></script>
+<script src="webapp_public/nodes/CustomDataNode.js"></script>
+<script src="webapp_public/nodes/ContextAssistantDataNode.js"></script>
+<script src="webapp_public/nodes/APIDataNode.js"></script>
+<script src="webapp_public/nodes/FileDataNode.js"></script>
+<script src="webapp_public/nodes/AssistantToolDataNode.js"></script>
+
+<!-- Load specific decision nodes -->
+<script src="webapp_public/nodes/UserDecisionNode.js"></script>
+<script src="webapp_public/nodes/AssistantDecisionNode.js"></script>
+<script src="webapp_public/nodes/ConditionalDecisionNode.js"></script>
+<script src="webapp_public/nodes/AssistantToolDecisionNode.js"></script>
+<!-- Load factory and builder -->
+<script src="webapp_public/nodes/NodeFactory.js"></script>
 
 
-
+<script src="webapp_public/CronbotBuilder.js"></script>
 
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
 
-
-
-
+    <link rel="stylesheet" href="css/phone-tree.css">
 
     <!-- Custom CSS -->
     <style>
@@ -80,6 +150,43 @@
         html, body {
             margin: 0;
             height: 100%;
+        }
+
+        /* Role-based background colors */
+        .role-admin {
+            background-color: rgba(108, 99, 255, 0.05);
+        }
+
+        .role-user {
+            background-color: rgba(40, 167, 69, 0.05);
+        }
+
+        .role-tools-user {
+            background-color: rgba(255, 193, 7, 0.05);
+        }
+
+        .role-tools-admin {
+            background-color: rgba(255, 193, 7, 0.1);
+        }
+
+        .role-phone-tree-user {
+            background-color: rgba(23, 162, 184, 0.05);
+        }
+
+        .role-phone-tree-admin {
+            background-color: rgba(23, 162, 184, 0.1);
+        }
+
+        .role-pipelines-user {
+            background-color: rgba(220, 53, 69, 0.05);
+        }
+
+        .role-pipelines-admin {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+
+        .role-surveys-user {
+            background-color: rgba(111, 66, 193, 0.05);
         }
 
         .hidden {
@@ -91,17 +198,21 @@
             display: flex;
             flex-direction: column;
             min-height: calc(100vh - 140px); /* Account for header and footer */
-            padding-top: 1rem;
+            padding-top: 0;
         }
 
         .content-section {
             flex: 1;
+            
         }
 
         /* Navigation Styles */
         .navbar {
             background: linear-gradient(to right, #1a1a1a, #2d2d2d);
             padding: 0.75rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
         .navbar-brand {
@@ -209,7 +320,7 @@
             top: 20px;
             right: 20px;
             width: 300px;
-            z-index: 1050;
+            z-index: 1050; /* Ensure it appears above other content */
         }
 
         /* Form Elements */
@@ -309,6 +420,41 @@
     margin: 0 2px;
 }
     </style>
+
+
+    <!-- Node Module System -->
+    <script type="module">
+        // Initialize global namespace for node system
+        window.nodeSystem = {
+            loadedModules: new Map(),
+            async loadModule(moduleName) {
+                if (this.loadedModules.has(moduleName)) {
+                    return this.loadedModules.get(moduleName);
+                }
+                try {
+                    const module = await import(`/webapp_public/nodes/${moduleName}.js`);
+                    this.loadedModules.set(moduleName, module);
+                    return module;
+                } catch (error) {
+                    console.error(`Error loading module ${moduleName}:`, error);
+                    throw error;
+                }
+            }
+        };
+
+        // Load base modules
+        try {
+            await window.nodeSystem.loadModule('BaseNode');
+            await window.nodeSystem.loadModule('NodeLoader');
+            await window.nodeSystem.loadModule('NodeFactory');
+            console.log('Base node modules loaded successfully');
+        } catch (error) {
+            console.error('Error loading base node modules:', error);
+        }
+    </script>
+
+    <!-- Toastr CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 </head>
 <body>
 <!-- Navigation Bar -->
@@ -319,8 +465,8 @@
             <i class="fas fa-bars" style="color: white; cursor: pointer;"></i>
         </div>
 
-        <!-- Brand - Move inside headerContent but outside navbar-collapse -->
-        <a class="navbar-brand d-flex align-items-center" href="#">
+        <!-- Brand -->
+        <a class="navbar-brand d-flex align-items-center" href=" " onclick="window.location.reload()">
             <i class="fas fa-robot text-primary me-2"></i>
             <span class="fw-bold">RichBot9000</span>
         </a>
@@ -336,214 +482,7 @@
             <div class="collapse navbar-collapse" id="navbarContent">
                 <!-- Left Side Menu -->
                 <ul class="navbar-nav me-auto">
-                    <!-- Dashboard -->
-                    <li class="nav-item">
-                        <a class="nav-link px-3 active nav-section-toggler" href="#" data-section="richbotSection">
-                            <i class="fas fa-home me-1"></i>Dashboard
-                        </a>
-                    </li> 
-
-                    <!-- User Menu - Only visible when logged in -->
-                    <li class="nav-item dropdown hidden_richbot_logged_out">
-                        <a class="nav-link px-3 dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-cog me-1"></i>User Menu
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-sm">
-                            <div class="dropdown-header">Tools</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._prompt" data-section="assistants-prompt-section">
-                                <i class="fas fa-robot me-2"></i>Assistants Prompt
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._client" data-section="assistants-client-section">
-                                <i class="fas fa-robot me-2"></i>Assistants Client 
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.websocket._client" data-section="websocket-client-section">
-                                <i class="fas fa-robot me-2"></i>WebSocket Client 
-                            </a>
-
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.cronbot._index" data-section="cronbots-section">
-                                <i class="fas fa-clock me-2"></i>CronBots
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.integrations._index" data-section="integrations-section">
-                                <i class="fas fa-plug me-2"></i>Integrations
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.contacts._index" data-section="contacts-section">
-                                <i class="fas fa-address-book me-2"></i>Contacts
-                            </a>
-                        </div>
-                    </li>
-
-                    <!-- Open Tabs - Visible to Users -->
-                    <li data-visible-role="None" class="nav-item dropdown hidden hidden_richbot_logged_out">
-                        <a class="nav-link px-3 dropdown-toggle" href="#" id="openTabs" data-bs-toggle="dropdown">
-                            <i class="fas fa-folder-open me-1"></i>Open Tabs
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-sm">
-                            <div class="dropdown-header">Recent Tabs</div>
-                            <div id="openTabsList">
-                                <!-- Dynamically populated tabs -->
-                                <a class="dropdown-item" href="#">
-                                    <i class="fas fa-file me-2"></i>No open tabs
-                                </a>
-                            </div>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="#" id="clearTabsBtn">
-                                <i class="fas fa-trash-alt me-2"></i>Clear All Tabs
-                            </a>
-                        </div>
-                    </li>
-
-                    <!-- Admin Menu -->
-                    <li data-visible-role="admin" class="nav-item dropdown hidden_richbot_logged_out">
-                        <a class="nav-link px-3 dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="fas fa-shield-alt me-1"></i>Admin
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-sm">
-                            <div class="dropdown-header">Management</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._index" data-section="assistants_content_section">
-                                <i class="fas fa-users me-2"></i>Assistants
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.tools._index" data-section="ollama-tools-section">
-                                <i class="fas fa-tools me-2"></i>Tools
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.pipelines._index" data-section="assistant-pipelines-section">
-                                <i class="fas fa-project-diagram me-2"></i>Pipelines
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">AI & Chat</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.realtime._realtime" data-section="realtime-section">
-                                <i class="fas fa-comments me-2"></i>Realtime Chat
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.ollama._dashboard" data-section="ollama-section">
-                                <i class="fas fa-brain me-2"></i>Ollama
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.conversations._index" data-section="conversations-section">
-                                <i class="fas fa-brain me-2"></i>Conversations 
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">System</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.richbot9000._admin_section" data-section="admin-section">
-                                <i class="fas fa-cog me-2"></i>Admin Section
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.sms._sms_index" data-section="sms-messages-section">
-                                <i class="fas fa-sms me-2"></i>SMS Messages
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.remote_richbot._richbots" data-section="remote-richbots-section">
-                                <i class="fas fa-server me-2"></i>RichBots Overview
-                            </a>
-                        </div>
-                    </li>
-
-                    <!-- Editor Menu -->
-                    <li data-visible-role="Editor" class="nav-item dropdown hidden_richbot_logged_out">
-                        <a class="nav-link px-3 dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="fas fa-edit me-1"></i>Editor
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-sm">
-                            <div class="dropdown-header">Content</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.conversations._create" data-section="create-conversation-section">
-                                <i class="fas fa-plus-circle me-2"></i>New Conversation
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.realtime._realtime" data-section="realtime-section">
-                                <i class="fas fa-comments me-2"></i>Realtime Chat
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.phone._answer" data-section="phone-answer-section">
-                                <i class="fas fa-phone me-2"></i>Phones
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.phone._clients" data-section="phone-clients-section">
-                                <i class="fas fa-phone me-2"></i>Phone Client
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.websockets._manager" data-section="websockets-manager-section">
-                                <i class="fas fa-network-wired me-2"></i>WebSocket Manager
-                            </a>
-
-
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.websockets._client" data-section="websockets-client-section">
-                                <i class="fas fa-network-wired me-2"></i>WebSocket Client   
-                            </a>
-
-
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.openai._realtime" data-section="realtime-section">
-                                <i class="fas fa-comments me-2"></i>OpenAI Realtime Chat
-                            </a>
-
-                            
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">Tools</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.tools._index" data-section="ollama-tools-section">
-                                <i class="fas fa-tools me-2"></i>Tools
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.pipelines._index" data-section="assistant-pipelines-section">
-                                <i class="fas fa-project-diagram me-2"></i>Pipelines
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.coding._prompt" data-section="coding-prompt-section">
-                                <i class="fas fa-code me-2"></i>Coding Prompt
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.file_change_requests._index" data-section="file-change-request-section">
-                                <i class="fas fa-file-code me-2"></i>File Changes
-                            </a>
-                        </div>
-                    </li>
-
-                    <!-- Add this after the Editor Menu and before the right-side menu -->
-                    <li data-visible-role="admin" class="nav-item dropdown hidden_richbot_logged_out">
-                        <a class="nav-link px-3 dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="fas fa-archive me-1"></i>Legacy
-                        </a>
-                        <div class="dropdown-menu border-0 shadow-sm">
-                            <div class="dropdown-header">Dashboard</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.richbot9000._admin_section" data-section="richbotSection">
-                                <i class="fas fa-tachometer-alt me-2"></i>RichBot9000 Dashboard
-                            </a>
-                            
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">Communication</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.openai._prompt" data-section="chat_content_section">
-                                <i class="fas fa-comment me-2"></i>Chat
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.sms._sms_index" data-section="sms-messages-section">
-                                <i class="fas fa-sms me-2"></i>SMS Messages
-                            </a>
-                            
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">AI & Assistants</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="assistant_functions.content._index" data-section="functions_content_section">
-                                <i class="fas fa-code me-2"></i>Functions
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="assistants.content._index" data-section="assistants_content_section">
-                                <i class="fas fa-robot me-2"></i>Assistants
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.ollama._dashboard" data-section="ollama-section">
-                                <i class="fas fa-brain me-2"></i>Ollama Overview
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.whisper._prompt" data-section="whisper-prompt">
-                                <i class="fas fa-microphone me-2"></i>Whisper Test
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.ollama_conversations._ollama_prompt" data-section="ollama-prompt">
-                                <i class="fas fa-comments me-2"></i>Ollama Prompt
-                            </a>
-                            
-                            <div class="dropdown-divider"></div>
-                            <div class="dropdown-header">Management</div>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.appointments._index" data-section="appointment-index-section">
-                                <i class="fas fa-calendar me-2"></i>Appointments
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.project._projects" data-section="projects-index-section">
-                                <i class="fas fa-project-diagram me-2"></i>Projects
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.remote_richbot._richbots" data-section="remote-richbots-section">
-                                <i class="fas fa-server me-2"></i>RichBots Overview
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.assistants._index" data-section="ollama-assistants-section">
-                                <i class="fas fa-users me-2"></i>Ollama Assistants
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.tools._index" data-section="ollama-tools-section">
-                                <i class="fas fa-tools me-2"></i>Ollama Tools
-                            </a>
-                            <a class="dropdown-item nav-content-loader" href="#" data-view="webapp.pipelines._index" data-section="assistant-pipelines-section">
-                                <i class="fas fa-stream me-2"></i>Assistant Pipelines
-                            </a>
-                        </div>
-                    </li>
+                    <!-- Menu items will be dynamically generated here -->
                 </ul>
 
                 <!-- Right Side Menu -->
@@ -595,6 +534,11 @@
                 <span class="badge bg-danger ms-2" id="notificationCount">0</span>
             </a>
 
+            <!-- Logout -->
+            <a class="dropdown-item text-danger" href="#" id="logoutButton">
+                <i class="fas fa-sign-out-alt me-2"></i>Logout
+            </a>
+
             <!-- Verification Status -->
             <div class="dropdown-divider"></div>
             <div class="dropdown-header">Verification Status</div>
@@ -605,26 +549,53 @@
                     <span class="hidden_email_verified text-danger">Email Unverified</span>
                     <span class="hidden_email_not_verified text-success">Email Verified</span>
                 </div>
-                <div class="d-flex align-items-center">
+                <!-- Email Verification Form -->
+                <div class="hidden_email_verified mb-3">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="emailCodeInput" placeholder="Email Code">
+                        <button class="btn btn-outline-primary verify-richbot-email-button" data-type="email">Verify</button>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0 mt-1" id="resendEmailVerification">
+                        Resend Verification Email
+                    </button>
+                </div>
+
+                <div class="d-flex align-items-center mb-2">
                     <i class="fas fa-phone me-2 hidden_phone_verified text-danger"></i>
                     <i class="fas fa-phone me-2 hidden_phone_not_verified text-success"></i>
                     <span class="hidden_phone_verified text-danger">Phone Unverified</span>
                     <span class="hidden_phone_not_verified text-success">Phone Verified</span>
                 </div>
-            </div>
+                <!-- Phone Verification Form -->
+                <div class="hidden_phone_verified mb-3">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="phoneCodeInput" placeholder="Phone Code">
+                        <button class="btn btn-outline-primary verify-richbot-phone-button" data-type="sms">Verify</button>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0 mt-1" id="resendSmsVerification">
+                        Resend SMS Code
+                    </button>
+                </div>
 
-            <!-- Verification Actions -->
+                <!-- Notification Preferences -->
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-header">Notification Preferences</div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="emailNotifications" name="notifications[email]">
+                    <label class="form-check-label" for="emailNotifications">Email Notifications</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="smsNotifications" name="notifications[sms]">
+                    <label class="form-check-label" for="smsNotifications">SMS Notifications</label>
+                </div>
+            </div>
+            <!-- Debug & System -->
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-header">Roles</div>
             <div class="px-3 py-2">
-                <div class="hidden_email_verified mb-2">
-                    <a href="#" id="resendVerificationLink" class="btn btn-outline-primary btn-sm w-100">
-                        <i class="fas fa-envelope me-2"></i>Resend Email Verification
-                    </a>
-                </div>
-                <div class="hidden_phone_verified">
-                    <a href="#" id="resendSMSVerificationLink" class="btn btn-outline-primary btn-sm w-100">
-                        <i class="fas fa-sms me-2"></i>Resend SMS Verification
-                    </a>
-                </div>
+                <ul id="menuRolesList" class="list-unstyled mb-0">
+                    <!-- Dynamically populated -->
+                </ul>
             </div>
 
             <!-- Debug & System -->
@@ -634,22 +605,9 @@
                 <i class="fas fa-bug me-2"></i>App State Debug
             </a>
             
-            <!-- Connection Status --> 
-            <div class="dropdown-header hidden">Connections Status</div>
-            <div class="px-3 py-2">
-                <ul id="servicesList" class="list-unstyled mb-0">
-                    <!-- Dynamically populated -->
-                </ul>
-            </div>
-
-            <!-- Logout -->
-            <div class="dropdown-divider"></div>
-            <a class="dropdown-item text-danger" href="#" id="logoutButton">
-                <i class="fas fa-sign-out-alt me-2"></i>Logout
-            </a>
+           
         </div>
     </li>
-             
 
                 <!-- Login/Register -->
     <li class="nav-item hidden_richbot_logged_in">
@@ -759,6 +717,19 @@
 </div>
 
 <script>
+    // Global config from Laravel
+    window.appConfig = {
+        domain: '{{ config('app.domain') }}',
+        url: '{{ config('app.url') }}',
+        wsPort: '{{ config('app.ws_port') }}',
+        wsPortAlt: '{{ config('app.ws_port_alt') }}',
+        wsUrl: 'wss://{{ config('app.domain') }}:{{ config('app.ws_port') }}',
+        wsUrlAlt: 'wss://{{ config('app.domain') }}:{{ config('app.ws_port_alt') }}',
+        apiUrl: '{{ config('app.url') }}/api'
+    };
+</script>
+
+<script>
 
     function updateLocalStorageDebug() {
         let localStorageData = JSON.stringify(localStorage, null, 2);
@@ -799,7 +770,7 @@
             RichBot9000 Manager
         </div>
 
-
+ 
         <div class="" id="appstate-debug-section">
 
                 <button class="btn btn-link button" data-bs-toggle="collapse" data-bs-target="#debugCardBody"
@@ -848,6 +819,30 @@ document.getElementById('clearTabsBtn')?.addEventListener('click', function(e) {
     // Your clear tabs logic here
     updateOpenTabsList();
 });
+</script>
+
+<!-- Toastr JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script>
+  if (typeof toastr !== 'undefined') {
+    toastr.options = {
+      "closeButton": true,
+      "debug": false,
+      "newestOnTop": true,
+      "progressBar": true,
+      "positionClass": "toast-top-right",
+      "preventDuplicates": true,
+      "onclick": null,
+      "showDuration": "300",
+      "hideDuration": "1000",
+      "timeOut": "3000",
+      "extendedTimeOut": "1000",
+      "showEasing": "swing",
+      "hideEasing": "linear",
+      "showMethod": "fadeIn",
+      "hideMethod": "fadeOut"
+    };
+  }
 </script>
 
 </body>

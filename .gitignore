@@ -22,4 +22,7 @@ yarn-error.log
 /public/whisper_public/models/*.bin 
 
 # Generated files
-/app/upgrade 
+/app/upgrade
+wget-log
+*.pid
+storage/logs/*.pid 

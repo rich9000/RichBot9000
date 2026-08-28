@@ -167,7 +167,7 @@ class OpenAIAssistant
                     'Authorization' => 'Bearer ' . $this->apiKey,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
-                    'OpenAI-Beta' => 'assistants=v1',
+                    'OpenAI-Beta' => 'assistants=v2',
                 ]
             ]);
 
@@ -619,6 +619,41 @@ class OpenAIAssistant
         }
 
         return $response['data'];
+    }
+
+    /**
+     * Convert text to speech using OpenAI's TTS API
+     * 
+     * @param string $text The text to convert to speech
+     * @param string $voice The voice to use (alloy, echo, fable, onyx, nova, shimmer)
+     * @param string $model The model to use (tts-1, tts-1-hd)
+     * @return string The audio data
+     */
+    public function textToSpeech($text, $voice = 'alloy', $model = 'tts-1')
+    {
+        try {
+            $response = $this->client->post("{$this->base_url}/audio/speech", [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => [
+                    'model' => $model,
+                    'voice' => $voice,
+                    'input' => $text
+                ]
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new \Exception("OpenAI API Returned Unexpected HTTP code {$response->getStatusCode()}.");
+            }
+
+            return $response->getBody()->getContents();
+
+        } catch (RequestException $e) {
+            Log::error("Text to speech request failed: {$e->getMessage()}");
+            throw $e;
+        }
     }
 }
 

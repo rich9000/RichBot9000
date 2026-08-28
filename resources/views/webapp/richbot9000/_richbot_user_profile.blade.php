@@ -19,11 +19,16 @@
                 <span class="text-dark" style="color: black;">Password</span>
                 </a>            </li>
         </ul>
-        <div class="tab-content" id="profileTabContent">
+        <div class="tab-content active" id="profileTabContent" >
 
 
                  <div class="tab-pane fade active" id="profile_info" role="tabpanel" aria-labelledby="profile-info-tab">
                 <div class="row">
+                    <div id="user-profile-info"></div>
+
+
+
+
                 Info goes here.
                 </div>
             </div>
@@ -135,16 +140,29 @@
         </div>
     </div>
 </div>
-
+@push('scripts')
 <script>
   
 
+document.addEventListener('DOMContentLoaded', function() {
+    updateUserInfo();
+
+    function updateUserInfo() {
+
+    // get the user info from the api
+    let user = appState.user;
+
+    console.log('user', user);
 
 
-
-
-
-
+    // update the user info in the div
+    document.getElementById('user-profile-info').innerHTML = `
+        <h4>User Profile</h4>
+        <p>Name: ${user.name}</p>
+        <p>Email: ${user.email}</p>
+        `;
+    }
+});
 
 
 
@@ -160,7 +178,7 @@
 
     // Load tokens on click
     document.getElementById('loadTokensBtn').addEventListener('click', function() {
-        ajaxRequest('https://richbot9000.com/api/user/tokens', 'GET')
+        ajaxRequest(`${window.appConfig.apiUrl}/user/tokens`, 'GET')
             .then(data => {
                 loadTokens(data.tokens);
             })
@@ -171,7 +189,7 @@
 
     // Revoke all tokens on click
     document.getElementById('revokeAllTokensBtn').addEventListener('click', function() {
-        ajaxRequest('https://richbot9000.com/api/user/tokens', 'DELETE')
+        ajaxRequest(`${window.appConfig.apiUrl}/user/tokens`, 'DELETE')
             .then(response => {
                 alert('All tokens revoked successfully.');
                 document.getElementById('tokens-body').innerHTML = '';
@@ -185,7 +203,7 @@
     document.addEventListener('click', function(event) {
         if (event.target.classList.contains('revoke-token-btn')) {
             const tokenId = event.target.getAttribute('data-token-id');
-            ajaxRequest(`https://richbot9000.com/api/user/tokens/${tokenId}`, 'DELETE')
+            ajaxRequest(`${window.appConfig.apiUrl}/user/tokens/${tokenId}`, 'DELETE')
                 .then(response => {
                     alert('Token revoked successfully.');
                     const tokenElement = document.getElementById(`token-${tokenId}`);
@@ -229,6 +247,7 @@
 
 
 </script>
+@endpush
 
 
 

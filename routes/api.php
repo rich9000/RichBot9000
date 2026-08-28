@@ -16,6 +16,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ApiAssistantsController;
 use App\Http\Controllers\OpenAiApiController;
 use App\Http\Controllers\WebRTCController;
+use App\Http\Controllers\BareWebsocketServerController;
 use App\Http\Controllers\VideoUploadController;
 
 use App\Http\Controllers\BambooHRProxyController;
@@ -33,7 +34,6 @@ use App\Http\Controllers\MediaTriggerController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\ToolController;
-use App\Http\Controllers\DisplayController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\StageController;
 use App\Http\Controllers\AudioController;
@@ -52,12 +52,47 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\TwilioVoiceController;
 use App\Http\Middleware\TwilioVerify;
 use App\Http\Middleware\ValidateTwilioRequest;
+use App\Http\Controllers\AiEasyFormController;
+use App\Http\Controllers\SurveyController;
+use App\Http\Controllers\SurveyQuestionController;
+use App\Http\Controllers\SurveyCampaignController;
+use App\Http\Controllers\SurveyResponseController;
+use App\Http\Controllers\PhoneTreeController;
+use App\Http\Controllers\PhoneTreeNumberController;
+use App\Http\Controllers\PhoneTreeMenuController;
+use App\Http\Controllers\PhoneTreeOptionController;
+use App\Http\Controllers\PhoneTreeWebsocketController;
+use App\Http\Controllers\PhoneTreeCallController;
+use App\Http\Controllers\PhoneTreeRecordingController;
+use App\Http\Controllers\PhoneTreeTranscriptionController;
+use App\Http\Controllers\AudioManagerController;
+use App\Http\Controllers\DisplayController;
+use App\Http\Controllers\PhoneTreeScriptController;
+use App\Http\Controllers\ToolGroupController;
+use App\Http\Controllers\ConversationPathController;
+use App\Http\Controllers\ScriptController;
+use App\Http\Controllers\ConversationPathCallController;
+use App\Http\Controllers\OpenAIImageController;
+use App\Http\Controllers\UserToolGroupController;
+
+
+
+// Phone Tree Routes
+Route::post('/voice/phone-tree/call', [TwilioVoiceController::class, 'handlePhoneTreeCall'])->name('phone-tree-call');
+Route::post('/voice/phone-tree/{phoneTreeId}/call', [TwilioVoiceController::class, 'handlePhoneTreeCall'])->name('phone-tree-call-by-id');
+Route::post('/voice/phone-tree/menu-response', [TwilioVoiceController::class, 'handlePhoneTreeMenuResponse'])->name('phone-tree-menu-response');
+Route::post('/voice/phone-tree/menu/{callSid}/response', [TwilioVoiceController::class, 'handlePhoneTreeMenuResponseBySid'])->name('phone-tree-menu-response-by-id');
+Route::post('/voice/phone-tree/timeout', [TwilioVoiceController::class, 'handlePhoneTreeTimeout'])->name('phone-tree-timeout');
+Route::post('/voice/phone-tree/websocket/{callSid}', [TwilioVoiceController::class, 'handlePhoneTreeWebsocket'])->name('phone-tree-websocket');
+Route::post('/voice/phone-tree/option', [TwilioVoiceController::class, 'handlePhoneTreeOption'])->name('phone-tree-option');
+Route::post('/voice/phone-tree/menu/{callSid}', [TwilioVoiceController::class, 'handlePhoneTreeMenu'])->name('phone-tree-menu');
 
 
 // Twilio Voice Routes - group them together
 Route::prefix('voice')->group(function () {
     
     Route::post('/incoming', [TwilioVoiceController::class, 'handleCall'])->name('voice');
+    Route::post('/websocket-call/{room}', [TwilioVoiceController::class, 'handleWebSocketCall'])->name('voice.websocket');
     Route::post('/menu-response', [TwilioVoiceController::class, 'handleMenuResponse'])->name('menu-response');
     Route::post('/recording', [TwilioVoiceController::class, 'handleRecording'])->name('handle-recording');
     Route::post('/transcription', [TwilioVoiceController::class, 'handleTranscription'])->name('handle-transcription');
@@ -73,8 +108,57 @@ Route::get('/display/{id}', [DisplayController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
 
 
+    Route::prefix('surveys')->group(function () {
+        Route::get('/', [SurveyController::class, 'index']);
+        Route::post('/', [SurveyController::class, 'store']);
+        Route::get('/{survey}', [SurveyController::class, 'show']);
+        Route::put('/{survey}', [SurveyController::class, 'update']);
+        Route::delete('/{survey}', [SurveyController::class, 'destroy']);
+        Route::post('/bulk-delete', [SurveyController::class, 'bulkDelete']);
 
-   
+        // Question routes
+        Route::post('/{survey}/questions', [SurveyQuestionController::class, 'store']);
+        Route::put('/{survey}/questions/{question}', [SurveyQuestionController::class, 'update']);
+        Route::delete('/{survey}/questions/{question}', [SurveyQuestionController::class, 'destroy']);
+        Route::post('/{survey}/questions/reorder', [SurveyQuestionController::class, 'updateOrder']);
+
+        // Campaign routes
+        Route::get('/{survey}/campaigns', [SurveyCampaignController::class, 'index']);
+        Route::post('/{survey}/campaigns', [SurveyCampaignController::class, 'store']);
+    });
+
+    // Standalone campaign routes
+    Route::prefix('survey-campaigns')->group(function () {
+        Route::get('/{campaign}', [SurveyCampaignController::class, 'show']);
+        Route::put('/{campaign}', [SurveyCampaignController::class, 'update']);
+        Route::delete('/{campaign}', [SurveyCampaignController::class, 'destroy']);
+        Route::get('/{campaign}/contacts', [SurveyCampaignController::class, 'getContacts']);
+        Route::post('/{campaign}/contacts', [SurveyCampaignController::class, 'addContacts']);
+        Route::delete('/{campaign}/contacts/{surveyContact}', [SurveyCampaignController::class, 'removeContact']);
+        Route::post('/{campaign}/contacts/{surveyContact}/start-survey', [SurveyCampaignController::class, 'startSurvey']);
+    });
+
+    Route::prefix('survey-responses')->group(function () {
+        Route::get('/{response}', [SurveyResponseController::class, 'show']);
+    });
+
+
+    Route::prefix('webrtc')->group(function () {
+        Route::get('/status', [WebRTCController::class, 'status']);
+        Route::get('/rooms', [WebRTCController::class, 'getRooms']);
+        Route::post('/services/{service}/start', [WebRTCController::class, 'startService']);
+        Route::post('/services/{service}/stop', [WebRTCController::class, 'stopService']);
+        Route::post('/services/{service}/restart', [WebRTCController::class, 'restartService']);
+        Route::get('/turn-credentials', [WebRTCController::class, 'getTurnCredentials']);
+    });
+
+    Route::prefix('bare-websocket')->group(function () {
+        Route::get('/status', [BareWebsocketServerController::class, 'status']);
+        Route::post('/start', [BareWebsocketServerController::class, 'start']);
+        Route::post('/stop', [BareWebsocketServerController::class, 'stop']);
+        Route::post('/restart', [BareWebsocketServerController::class, 'restart']);
+    });
+    
 
 
 
@@ -106,6 +190,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('files', [FileBrowserController::class, 'browse']);
     Route::get('download', [FileBrowserController::class, 'download']);
+    Route::get('conversations', [FileBrowserController::class, 'listConversations']);
+    Route::get('conversations/{conversationId}/files', [FileBrowserController::class, 'listConversationFiles']);
 
 
     Route::post('/coding/session/create', [CodingController::class, 'createSession']);
@@ -128,6 +214,7 @@ Route::middleware('auth:sanctum')->group(function () {
         //
         Route::delete('stages/{stage}', [StageController::class, 'destroy']);
         Route::get('stages/{stage}', [StageController::class, 'show']);
+        
     });
 
     Route::post('pipelines/{pipeline}/stages/reorder', [PipelineController::class, 'updateOrder']);
@@ -143,8 +230,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('tools', ToolController::class);
     Route::delete('tools/{tool}/parameters/{parameter}', [ToolController::class, 'deleteParameter']);
     Route::get('/tools', [ToolController::class, 'index'])->name('tools.index');
+    Route::post('/tools/{id}/test', [ToolController::class, 'testTool'])->name('tools.test');
 
     Route::get('/ollama_assistants', [AssistantController::class, 'index']);
+    Route::get('/assistants', [AssistantController::class, 'index'])->name('assistants.index');
     Route::get('/user_assistants', [AssistantController::class, 'index']);
 
     Route::get('/assistants/{id}', [AssistantController::class, 'show']);
@@ -161,6 +250,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('contacts', ContactController::class);
     Route::post('contacts/{contact}/opt-in', [ContactController::class, 'optIn']);
+    Route::post('/contacts/{contact}/start-opt-in', [ContactController::class, 'startOptInProcess']);
+    Route::post('/contacts/{contact}/opt-out', [ContactController::class, 'optOut']);
+
+    // Conversation Paths
+    Route::prefix('conversation-paths')->group(function () {
+        Route::get('/', [ConversationPathController::class, 'index']);
+        Route::post('/', [ConversationPathController::class, 'store']);
+        Route::get('/{id}', [ConversationPathController::class, 'show']);
+        Route::put('/{id}', [ConversationPathController::class, 'update']);
+        Route::delete('/{id}', [ConversationPathController::class, 'destroy']);
+    });
 
 });
 Route::post('/login', [RemoteRichbotController::class, 'login']);
@@ -256,6 +356,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/file-transfer', [ApiFileController::class, 'transfer']);
 
     Route::get('/list/files', [ApiFileController::class, 'listFiles'])->name('listFiles');
+    Route::post('/list/files', [ApiFileController::class, 'listFiles'])->name('listFilesPath');
 
 
     // File Download
@@ -270,6 +371,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // List File and Folder Tree
     Route::get('/list/tree', [ApiFileController::class, 'listTree'])->name('listTree');
+    Route::post('/list/tree', [ApiFileController::class, 'listTree'])->name('postlistTree');
 
     // Directory Creation and Deletion
     Route::post('/directory/create', [ApiFileController::class, 'createDirectory'])->name('createDirectory');
@@ -288,6 +390,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/resend-email-verification', [EmailVerificationController::class, 'requestEmailVerificationToken']);
     Route::post('/verify-email', [EmailVerificationController::class, 'verifyEmailToken']);
 });
+
+// Public email verification endpoint (no authentication required)
+Route::post('/verify-email-public', [EmailVerificationController::class, 'verifyEmailTokenPublic']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/resend-sms-verification', [SmsVerificationController::class, 'requestSmsVerificationToken']);
@@ -319,7 +424,7 @@ Route::middleware('auth:sanctum')->post('/logout', [ApiAuthController::class, 'l
 Route::middleware('auth:sanctum')->get('/content/{section}', [ContentController::class, 'getContent'])->name('api.content.get');
 
 // User management routes
-Route::middleware(['auth:sanctum', 'role:Admin'])->prefix('users')->group(function () {
+Route::middleware(['auth:sanctum'])->prefix('users')->group(function () {
     Route::post('/', [UserController::class, 'store'])->name('api.users.store');
     Route::put('/{user}', [UserController::class, 'update'])->name('api.users.update');
     Route::delete('/{user}', [UserController::class, 'destroy'])->name('api.users.destroy');
@@ -349,7 +454,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware('auth:sanctum')->get('/assistant_functions', [AssistantFunctionController::class, 'index'])->name('api.assistant_functions.index');
 
 // Assistant management routes
-Route::middleware('auth:sanctum')->prefix('assistants')->group(function () {
+Route::middleware('auth:sanctum')->prefix('openai_assistants')->group(function () {
     Route::get('/', [ApiAssistantsController::class, 'index'])->name('api.assistants.index');
    // Route::post('/', [ApiAssistantsController::class, 'store'])->name('api.assistants.store');
     Route::delete('/{assistant}', [ApiAssistantsController::class, 'destroy'])->name('api.assistants.destroy');
@@ -385,13 +490,6 @@ Route::middleware('auth:sanctum')->prefix('openai')->group(function () {
     //->middleware('auth:sanctum');
 
 
-
-
-// Catch-all route for executors
-Route::any('/{executor}/{method}', [ApiExecutorController::class, 'execute'])
-    ->where('executor', '[a-zA-Z0-9]+')
-    ->where('method', '[a-zA-Z0-9_]+')
-    ->middleware('auth:sanctum');
 
 Route::get('/conversations', [ConversationController::class, 'index']);
 
@@ -462,3 +560,192 @@ Route::middleware(['auth:sanctum'])->prefix('users')->group(function () {
 });
 
 */
+
+Route::middleware('auth:sanctum')->group(function () {
+    // AI Easy Form routes
+    Route::post('/ai-easy-form/store-form', [AiEasyFormController::class, 'storeForm']);
+    Route::post('/ai-easy-form/update-element', [AiEasyFormController::class, 'updateElement']);
+    Route::get('/ai-easy-form/get-element-value/{formId}/{elementId}', [AiEasyFormController::class, 'getElementValue']);
+    Route::get('/ai-easy-form/get-form-values/{formId}', [AiEasyFormController::class, 'getAllFormValues']);
+});
+
+// Text to Speech Routes
+Route::post('/text-to-speech', [AudioController::class, 'textToSpeech']);
+Route::post('/text-to-speech/stream', [AudioController::class, 'streamTextToSpeech']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Bulk campaign operations
+    Route::post('/campaigns/bulk-start', [SurveyCampaignController::class, 'bulkStartCampaign']);
+    Route::post('/surveys/{survey}/start-campaign', [SurveyCampaignController::class, 'startSurveyCampaign']);
+
+    // Phone Tree routes
+    Route::prefix('phone-trees')->group(function () {
+        Route::get('/', [PhoneTreeController::class, 'index']);
+        Route::post('/', [PhoneTreeController::class, 'store']);
+        Route::get('/{phoneTree}', [PhoneTreeController::class, 'show']);
+        Route::put('/{phoneTree}', [PhoneTreeController::class, 'update']);
+        Route::delete('/{phoneTree}', [PhoneTreeController::class, 'destroy']);
+
+        // Number routes
+        Route::get('/{phoneTree}/numbers', [PhoneTreeNumberController::class, 'index']);
+        Route::post('/{phoneTree}/numbers', [PhoneTreeNumberController::class, 'store']);
+        Route::get('/{phoneTree}/numbers/{number}', [PhoneTreeNumberController::class, 'show']);
+        Route::put('/{phoneTree}/numbers/{number}', [PhoneTreeNumberController::class, 'update']);
+        Route::delete('/{phoneTree}/numbers/{number}', [PhoneTreeNumberController::class, 'destroy']);
+
+        // Menu routes
+        Route::get('/{phoneTree}/menus', [PhoneTreeMenuController::class, 'index']);
+        Route::post('/{phoneTree}/menus', [PhoneTreeMenuController::class, 'store']);
+        Route::get('/{phoneTree}/menus/{menu}', [PhoneTreeMenuController::class, 'show']);
+        Route::put('/{phoneTree}/menus/{menu}', [PhoneTreeMenuController::class, 'update']);
+        Route::delete('/{phoneTree}/menus/{menu}', [PhoneTreeMenuController::class, 'destroy']);
+
+        // Option routes
+        Route::get('/{phoneTree}/menus/{menu}/options', [PhoneTreeOptionController::class, 'index']);
+        Route::post('/{phoneTree}/menus/{menu}/options', [PhoneTreeOptionController::class, 'store']);
+        Route::get('/{phoneTree}/options/{option}', [PhoneTreeOptionController::class, 'show']);
+        Route::put('/{phoneTree}/menus/{menu}/options/{option}', [PhoneTreeOptionController::class, 'update']);
+        Route::put('/{phoneTree}/options/{option}', [PhoneTreeOptionController::class, 'update'])->where('option', '[0-9]+');
+        Route::delete('/{phoneTree}/options/{option}', [PhoneTreeOptionController::class, 'destroy']);
+        Route::delete('/{phoneTree}/menus/{menu}/options/{option}', [PhoneTreeOptionController::class, 'destroy']);
+
+        // WebSocket routes
+        Route::get('/{phoneTree}/websockets', [PhoneTreeWebsocketController::class, 'index']);
+        Route::post('/{phoneTree}/websockets', [PhoneTreeWebsocketController::class, 'store']);
+        Route::get('/{phoneTree}/websockets/{websocket}', [PhoneTreeWebsocketController::class, 'show']);
+        Route::put('/{phoneTree}/websockets/{websocket}', [PhoneTreeWebsocketController::class, 'update']);
+        Route::delete('/{phoneTree}/websockets/{websocket}', [PhoneTreeWebsocketController::class, 'destroy']);
+
+        // Call routes
+        Route::get('/{phoneTree}/calls', [PhoneTreeCallController::class, 'index']);
+        Route::get('/{phoneTree}/calls/{call}', [PhoneTreeCallController::class, 'show']);
+        Route::put('/{phoneTree}/calls/{call}', [PhoneTreeCallController::class, 'update']);
+        Route::delete('/{phoneTree}/calls/{call}', [PhoneTreeCallController::class, 'destroy']);
+
+        // Recording routes
+        Route::get('/{phoneTree}/calls/{call}/recordings', [PhoneTreeRecordingController::class, 'index']);
+        Route::post('/{phoneTree}/calls/{call}/recordings', [PhoneTreeRecordingController::class, 'store']);
+        Route::get('/{phoneTree}/calls/{call}/recordings/{recording}', [PhoneTreeRecordingController::class, 'show']);
+        Route::put('/{phoneTree}/calls/{call}/recordings/{recording}', [PhoneTreeRecordingController::class, 'update']);
+        Route::delete('/{phoneTree}/calls/{call}/recordings/{recording}', [PhoneTreeRecordingController::class, 'destroy']);
+
+        // Transcription routes
+        Route::get('/{phoneTree}/calls/{call}/transcriptions', [PhoneTreeTranscriptionController::class, 'index']);
+        Route::post('/{phoneTree}/calls/{call}/transcriptions', [PhoneTreeTranscriptionController::class, 'store']);
+        Route::get('/{phoneTree}/calls/{call}/transcriptions/{transcription}', [PhoneTreeTranscriptionController::class, 'show']);
+        Route::put('/{phoneTree}/calls/{call}/transcriptions/{transcription}', [PhoneTreeTranscriptionController::class, 'update']);
+        Route::delete('/{phoneTree}/calls/{call}/transcriptions/{transcription}', [PhoneTreeTranscriptionController::class, 'destroy']);
+    });
+
+    // Audio Manager Routes
+    Route::get('audio-files', [AudioManagerController::class, 'index']);
+    Route::post('audio-files', [AudioManagerController::class, 'store']);
+    Route::get('audio-files/{audioFile}', [AudioManagerController::class, 'show']);
+    Route::put('audio-files/{audioFile}', [AudioManagerController::class, 'update']);
+    Route::delete('audio-files/{audioFile}', [AudioManagerController::class, 'destroy']);
+    
+    // Streaming routes
+    Route::post('audio-files/stream/create', [AudioManagerController::class, 'createStream']);
+    Route::post('audio-files/{audioFile}/stream/chunk', [AudioManagerController::class, 'streamChunk']);
+    Route::delete('audio-files/{audioFile}/stream', [AudioManagerController::class, 'cancelStream']);
+    
+    // Conversion route
+    Route::post('audio-files/convert', [AudioManagerController::class, 'convert']);
+});
+
+// Public route for serving audio files (no authentication required)
+Route::get('audio-files/{audioFile}/serve', [AudioManagerController::class, 'serveAudio']);
+
+// Phone Tree Scripts
+Route::get('/phone-trees/{phoneTree}/scripts', [PhoneTreeScriptController::class, 'index'])->name('phone-tree-scripts.index');
+Route::post('/phone-trees/{phoneTree}/scripts', [PhoneTreeScriptController::class, 'store'])->name('phone-tree-scripts.store');
+Route::get('/phone-trees/{phoneTree}/scripts/{script}', [PhoneTreeScriptController::class, 'show'])->name('phone-tree-scripts.show');
+Route::put('/phone-trees/{phoneTree}/scripts/{script}', [PhoneTreeScriptController::class, 'update'])->name('phone-tree-scripts.update');
+Route::delete('/phone-trees/{phoneTree}/scripts/{script}', [PhoneTreeScriptController::class, 'destroy'])->name('phone-tree-scripts.destroy');
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Tool Groups API
+    Route::get('/tool-groups', [ToolGroupController::class, 'index']);
+    Route::post('/tool-groups', [ToolGroupController::class, 'store']);
+    Route::get('/tool-groups/{toolGroup}', [ToolGroupController::class, 'show']);
+    Route::put('/tool-groups/{toolGroup}', [ToolGroupController::class, 'update']);
+    Route::delete('/tool-groups/{toolGroup}', [ToolGroupController::class, 'destroy']);
+
+    
+});
+
+// Conversation Path Routes
+Route::middleware('auth:sanctum')->prefix('conversation-paths')->group(function () {
+    Route::get('/', [ConversationPathController::class, 'index']);
+    Route::get('/{id}', [ConversationPathController::class, 'show']);
+    Route::post('/', [ConversationPathController::class, 'store']);
+    Route::put('/{id}', [ConversationPathController::class, 'update']);
+    Route::delete('/{id}', [ConversationPathController::class, 'destroy']);
+    
+    // Conversation specific routes
+    Route::get('/{pathId}/conversations/{conversationId}/current-step', [ConversationPathController::class, 'getCurrentStep']);
+    Route::post('/{pathId}/conversations/{conversationId}/answer', [ConversationPathController::class, 'submitAnswer']);
+});
+
+// Script Management Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('scripts', ScriptController::class);
+    Route::get('scripts/{script}', [ScriptController::class, 'show']);
+    Route::put('scripts/{script}', [ScriptController::class, 'update']);
+    Route::delete('scripts/{script}', [ScriptController::class, 'destroy']);
+    Route::post('scripts/{script}/execute', [ScriptController::class, 'execute']);
+    Route::get('scripts/{script}/content', [ScriptController::class, 'getContent']);
+});
+
+// Conversation Path Call API (no auth)
+Route::post('/conversation-path-call/start/{conversationPathId}', [ConversationPathCallController::class, 'startCall']);
+Route::post('/conversation-path-call/continue/{conversationId}', [ConversationPathCallController::class, 'continueCall']);
+
+// Conversation Path Call API (no auth)
+Route::get('/conversation-path-call/start/{conversationPathId}', [ConversationPathCallController::class, 'startCall']);
+Route::get('/conversation-path-call/continue/{conversationId}', [ConversationPathCallController::class, 'continueCall']);
+
+Route::post('/conversation-path-call/dtmf/{conversationId}', [\App\Http\Controllers\ConversationPathCallController::class, 'handleDtmfSelection']);
+
+// OpenAI Image Generation Routes
+Route::prefix('openai/images')->group(function () {
+    Route::post('/generate', [OpenAIImageController::class, 'generateImage']);
+    Route::post('/edit', [OpenAIImageController::class, 'editImage']);
+    Route::post('/variation', [OpenAIImageController::class, 'createVariation']);
+});
+
+// Bare Call Routes
+Route::prefix('bare/call')->group(function () {
+    Route::post('/start', [App\Http\Controllers\BareCallController::class, 'startCall']);
+    Route::post('/{callId}/end', [App\Http\Controllers\BareCallController::class, 'endCall']);
+    Route::get('/{callId}/status', [App\Http\Controllers\BareCallController::class, 'getCallStatus']);
+    Route::post('/conversation/{conversationId}/handle', [App\Http\Controllers\BareCallController::class, 'handleCall']);
+});
+
+// File Browser Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/conversations/files', [FileBrowserController::class, 'listConversations']);
+    Route::get('/conversations/files/{conversationId}', [FileBrowserController::class, 'listConversationFiles']);
+});
+
+Route::post('/alexa', [App\Http\Controllers\AlexaController::class, 'handle']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/screen/output', [App\Http\Controllers\Api\ScreenOutputController::class, 'getOutput']);
+    Route::get('/screen/stream', [App\Http\Controllers\Api\ScreenOutputController::class, 'stream']);
+});
+
+
+
+// Tool Group Management Routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/users/{user}/tool-groups', [UserToolGroupController::class, 'getUserToolGroups']);
+    Route::put('/users/{user}/tool-groups', [UserToolGroupController::class, 'updateUserToolGroups']);
+});
+
+
+// Catch-all route for executors
+Route::any('/{executor}/{method}', [ApiExecutorController::class, 'execute'])
+    ->where('executor', '[a-zA-Z0-9]+')
+    ->where('method', '[a-zA-Z0-9_]+')
+    ->middleware('auth:sanctum');

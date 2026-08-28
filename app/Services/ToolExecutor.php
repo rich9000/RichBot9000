@@ -17,18 +17,20 @@ use App\Models\Project;
 use App\Models\Appointment;
 use App\Models\Display;
 use Illuminate\Support\Facades\Log;
+use App\Services\DisplayService;
 
 
 class ToolExecutor
 {
-    public int $auth_user_id = 1;
+    public int $auth_user_id = 2;
     private $disk = false;
-
-    public function __construct()
+    private $user;
+    public $name = 'ToolExecutor';
+    public function __construct($user = null)
     {
-        $this->auth_user_id = 1;
+        $this->auth_user_id = 2;
         $this->disk = Storage::disk('richbot_sandbox');
-
+        $this->user = $user;
     }
 
 
@@ -125,24 +127,96 @@ class ToolExecutor
      */
     public function update_display($arguments)
     {
-        $display_name = $arguments['display_name'] ?? null;
-        $html_content = $arguments['html_content'] ?? null;
 
-        if (!$display_name || !$html_content) {
-            return ['success' => false, 'error' => 'Missing required parameters: display_name, html_content'];
-        }
+        Log::info("[TOOL] Update display", [
+            'arguments' => $arguments
+        ]);
 
         try {
-            $path = '/public/richbotdisplay/displays/' . $display_name . '.html';
-            $this->disk->put($path, $html_content);
+                  
+            if (!isset($arguments['display_name'])) {
+                throw new \Exception("Display name is required");
+            }
+
+            $displayName = $arguments['display_name'];
+            $htmlContent = $arguments['html_content'] ?? null;
+            $audioUrl = $arguments['audio_url'] ?? null;
+
+            //UPDATE DISPLAT where name = $displayName and make status = 0
+            Display::where('name', $displayName)->update(['status' => 0]);
+
+            //CREATE NEW DISPLAY
+            $display = new Display();
+            $display->name = $displayName;
+            $display->content = $htmlContent;
+            $display->audio_url = $audioUrl;
+            $display->status = 1;
+            $display->save();
 
             return [
                 'success' => true,
-                'message' => 'Display updated successfully!',
-                'path' => $path,
+                'display' => [
+                    'name' => $display->name,
+                    'content' => $display->content,
+                    'audio_url' => $display->audio_url,
+                    'status' => $display->status
+                ]
             ];
-        } catch (Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+
+        } catch (\Exception $e) {
+            Log::error("Error in update_display tool", [
+                'arguments' => $arguments,
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    public function get_display($arguments)
+    {
+        try {
+           
+            
+            if (!isset($arguments['display_name'])) {
+                throw new \Exception("Display name is required");
+            }
+
+            $display = Display::where(['name'=> $arguments['display_name'],'status'=>1])->first();
+
+            if(!$display){
+                $display = new Display();
+                $display->name = $arguments['display_name'];
+                $display->content = 'No content';
+                $display->status = 1;
+                $display->save();
+            }
+
+            if (!$display) {
+                throw new \Exception("Display not found");
+            }
+
+            return [
+                'success' => true,
+                'display' => [
+                    'name' => $display->name,
+                    'content' => $display->content,
+                    'audio_url' => $display->audio_url,
+                    'status' => $display->status
+                ]
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("Error in get_display tool", [
+                'arguments' => $arguments,
+                'error' => $e->getMessage()
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
         }
     }
 
@@ -1395,19 +1469,24 @@ class ToolExecutor
         return ['success' => true, 'ticket' => $ticket];
 
     }
-    public function summerize_ticket($arguements)
+    public function summerize_ticket($arguments)
     {
+        try {
+            Log::info('summerize_text:'.json_encode($arguments));
 
+            $ticket = new TicketSummary([
+                'assistant_name' => $arguments['assistant_name'],
+                'ticket_id' => $arguments['ticket_id'],
+                'summary_text' => $arguments['summary_text']
+            ]);
+            $ticket->save();
 
-        Log::info('summerize_text:'.json_encode($arguements));
+            Log::info(json_encode($ticket));
 
-        $ticket = new TicketSummary(['assistant_name'=>$arguements['assistant_name'],'ticket_id'=>$arguements['ticket_id'],'summary_text'=>$arguements['summary_text']]);
-$ticket->save();
-
-        Log::info(json_encode($ticket));
-
-        return ['success' => true, 'ticket_summary' => $ticket];
-
+            return ['success' => true, 'ticket_summary' => $ticket];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
 
@@ -1478,7 +1557,12 @@ $ticket->save();
 
                 $account = $rainbow->customerSearch($token,'account',$search_string);
                 Log::error("Customer Search Type: Account ".print_r($account,true));
-                return ['success' => true, 'message' => 'User found!','account'=>$account];
+
+                if($account && $account['status'] == 'success'){
+                    return ['success' => true, 'message' => 'User found!','account'=>$account];
+                } else {
+                    return ['success' => false, 'message' => 'User not found!'];
+                }
 
 
             }
@@ -1609,5 +1693,272 @@ if (!empty($extraMethods)) {
         }
     }
 
+    public function submit_context($arguments)
+    {
+        try {
+            $context = $arguments['context'] ?? null;
+            if (!$context) {
+                return ['success' => false, 'error' => 'Missing required parameter: context'];
+            }
+
+            // Store context in session or database as needed
+            session(['current_context' => $context]);
+            
+            return ['success' => true, 'message' => 'Context submitted successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function add_context_message($arguments)
+    {
+        try {
+            $message = $arguments['message'] ?? null;
+            if (!$message) {
+                return ['success' => false, 'error' => 'Missing required parameter: message'];
+            }
+
+            $currentContext = session('current_context', []);
+            $currentContext[] = $message;
+            session(['current_context' => $currentContext]);
+            
+            return ['success' => true, 'message' => 'Context message added successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function stage_complete($arguments)
+    {
+        try {
+            $stageId = $arguments['stage_id'] ?? null;
+            if (!$stageId) {
+                return ['success' => false, 'error' => 'Missing required parameter: stage_id'];
+            }
+
+            // Update stage status in database
+            $stage = \App\Models\Stage::find($stageId);
+            if (!$stage) {
+                return ['success' => false, 'error' => 'Stage not found'];
+            }
+
+            $stage->status = 'completed';
+            $stage->save();
+            
+            return ['success' => true, 'message' => 'Stage marked as complete'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function update_email_info($arguments)
+    {
+        try {
+            $userId = $arguments['user_id'] ?? null;
+            $email = $arguments['email'] ?? null;
+            if (!$userId || !$email) {
+                return ['success' => false, 'error' => 'Missing required parameters: user_id, email'];
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                return ['success' => false, 'error' => 'User not found'];
+            }
+
+            $user->email = $email;
+            $user->save();
+            
+            return ['success' => true, 'message' => 'Email information updated successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function list_user_projects($arguments)
+    {
+        try {
+            $userId = $arguments['user_id'] ?? null;
+            if (!$userId) {
+                return ['success' => false, 'error' => 'Missing required parameter: user_id'];
+            }
+
+            $projects = \App\Models\Project::where('user_id', $userId)->get();
+            
+            return ['success' => true, 'data' => $projects];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function list_project_tasks($arguments)
+    {
+        try {
+            $projectId = $arguments['project_id'] ?? null;
+            if (!$projectId) {
+                return ['success' => false, 'error' => 'Missing required parameter: project_id'];
+            }
+
+            $tasks = \App\Models\Task::where('project_id', $projectId)->get();
+            
+            return ['success' => true, 'data' => $tasks];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function set_task_complete($arguments)
+    {
+        try {
+            $taskId = $arguments['task_id'] ?? null;
+            if (!$taskId) {
+                return ['success' => false, 'error' => 'Missing required parameter: task_id'];
+            }
+
+            $task = \App\Models\Task::find($taskId);
+            if (!$task) {
+                return ['success' => false, 'error' => 'Task not found'];
+            }
+
+            $task->status = 'completed';
+            $task->save();
+            
+            return ['success' => true, 'message' => 'Task marked as complete'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function create_project_task($arguments)
+    {
+        try {
+            $projectId = $arguments['project_id'] ?? null;
+            $title = $arguments['title'] ?? null;
+            $description = $arguments['description'] ?? null;
+            
+            if (!$projectId || !$title) {
+                return ['success' => false, 'error' => 'Missing required parameters: project_id, title'];
+            }
+
+            $task = \App\Models\Task::create([
+                'project_id' => $projectId,
+                'title' => $title,
+                'description' => $description,
+                'status' => 'pending'
+            ]);
+            
+            return ['success' => true, 'data' => $task];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function update_project_description($arguments)
+    {
+        try {
+            $projectId = $arguments['project_id'] ?? null;
+            $description = $arguments['description'] ?? null;
+            
+            if (!$projectId || !$description) {
+                return ['success' => false, 'error' => 'Missing required parameters: project_id, description'];
+            }
+
+            $project = \App\Models\Project::find($projectId);
+            if (!$project) {
+                return ['success' => false, 'error' => 'Project not found'];
+            }
+
+            $project->description = $description;
+            $project->save();
+            
+            return ['success' => true, 'message' => 'Project description updated successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function email_user($arguments)
+    {
+        try {
+            $userId = $arguments['user_id'] ?? null;
+            $subject = $arguments['subject'] ?? null;
+            $message = $arguments['message'] ?? null;
+            
+            if (!$userId || !$subject || !$message) {
+                return ['success' => false, 'error' => 'Missing required parameters: user_id, subject, message'];
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                return ['success' => false, 'error' => 'User not found'];
+            }
+
+            \Illuminate\Support\Facades\Mail::to($user->email)
+                ->send(new \App\Mail\GenericMail($subject, $message));
+            
+            return ['success' => true, 'message' => 'Email sent successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function sms_user($arguments)
+    {
+        try {
+            $userId = $arguments['user_id'] ?? null;
+            $message = $arguments['message'] ?? null;
+            
+            if (!$userId || !$message) {
+                return ['success' => false, 'error' => 'Missing required parameters: user_id, message'];
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                return ['success' => false, 'error' => 'User not found'];
+            }
+
+            if (!$user->phone) {
+                return ['success' => false, 'error' => 'User has no phone number'];
+            }
+
+            $twilio = new \Twilio\Rest\Client(
+                config('services.twilio.sid'),
+                config('services.twilio.token')
+            );
+
+            $twilio->messages->create(
+                $user->phone,
+                [
+                    'from' => config('services.twilio.from'),
+                    'body' => $message
+                ]
+            );
+            
+            return ['success' => true, 'message' => 'SMS sent successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function finalize_display($arguments)
+    {
+        try {
+            $displayName = $arguments['display_name'] ?? null;
+            if (!$displayName) {
+                return ['success' => false, 'error' => 'Missing required parameter: display_name'];
+            }
+
+            $display = \App\Models\Display::where('name', $displayName)->first();
+            if (!$display) {
+                return ['success' => false, 'error' => 'Display not found'];
+            }
+
+            $display->status = 'finalized';
+            $display->save();
+            
+            return ['success' => true, 'message' => 'Display finalized successfully'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
 
 }

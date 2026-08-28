@@ -51,7 +51,7 @@ class StartSwooleServer extends Command
         $this->configureSSL($server);
 
         $server->on(Constant::EVENT_START, function() {
-            $this->info("[SERVER] WebSocket server started on wss://richbot9000.com:9501");
+            $this->info("[SERVER] WebSocket server started on wss://".config('app.domain').":".config('app.ws_port'));
         });
 
         $server->on('handshake', function(\OpenSwoole\Http\Request $request, \OpenSwoole\Http\Response $response) use ($server) {
@@ -121,8 +121,8 @@ class StartSwooleServer extends Command
     {
         $this->info("Configuring SSL...");
         $server->set([
-            'ssl_cert_file' => '/etc/letsencrypt/live/boxcrossranch.com/fullchain.pem',
-            'ssl_key_file' => '/etc/letsencrypt/live/boxcrossranch.com/privkey.pem',
+            'ssl_cert_file' => config('app.ssl_cert_file'),
+            'ssl_key_file' => config('app.ssl_key_file'),
             'ssl_verify_peer' => false,
         ]);
     }

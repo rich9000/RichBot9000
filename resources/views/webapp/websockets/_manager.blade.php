@@ -1,7 +1,36 @@
 <div id="manager-dashboard">
+    <div class="alert alert-info">
+        <strong>Current stack:</strong> <code>bare:server</code> + relay <code>bare:assistant-v2</code>.
+        The live manager is <strong>Bare Websocket Dashboard</strong>.
+        Start/stop here controls the regular <code>bare:server</code> process.
+    </div>
+
     <div id="manager-info">
         <h2>WebSocket Manager Dashboard</h2>
         <div id="manager-fd">Manager FD: Not Connected</div>
+    </div>
+
+    <div id="bare-server-controls" style="background:#1f2937;color:#fff;padding:16px;border-radius:8px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+            <div>
+                <strong>BareWebsocketServer</strong>
+                <div id="bare-server-listen" style="font-size:0.9em;opacity:0.85;">wss://host:9502</div>
+            </div>
+            <div>
+                <span id="bare-server-badge">Checking...</span>
+                <button type="button" id="bare-start-btn" onclick="controlBareServer('start')">Start</button>
+                <button type="button" id="bare-stop-btn" onclick="controlBareServer('stop')">Stop</button>
+                <button type="button" onclick="controlBareServer('restart')">Restart</button>
+                <button type="button" onclick="refreshBareServerStatus()">Refresh</button>
+            </div>
+        </div>
+        <div id="bare-server-message" style="margin-top:8px;font-size:0.9em;"></div>
+        <div id="bare-server-details" style="margin-top:10px;font-size:0.9em;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
+            <div>PID: <span id="bare-server-pid">-</span></div>
+            <div>Uptime: <span id="bare-server-uptime">-</span></div>
+            <div>Relays: <span id="bare-server-relays">-</span></div>
+            <div>Command: <span id="bare-server-cmd">bare:server</span></div>
+        </div>
     </div>
 
     <!-- Connection Status -->
@@ -47,7 +76,7 @@ function initializeManager() {
 
 function connectWebSocket() {
     try {
-        socket = new WebSocket(`wss://richbot9000.com:9501?token=${appState.apiToken}`);
+        socket = new WebSocket(`${window.appConfig.wsUrl}?token=${appState.apiToken}`);
         setupSocketListeners();
     } catch (error) {
         logDebug(`Connection error: ${error.message}`);
@@ -313,8 +342,63 @@ function reconnectWebSocket() {
     connectWebSocket();
 }
 
+async function refreshBareServerStatus() {
+    try {
+        const response = await fetch('/api/bare-websocket/status', {
+            headers: {
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json'
+            }
+        });
+        const data = await response.json();
+        renderBareServerStatus(data);
+    } catch (error) {
+        document.getElementById('bare-server-message').textContent = 'Could not load server status: ' + error.message;
+    }
+}
+
+function renderBareServerStatus(data) {
+    const running = !!(data.server && data.server.running);
+    const badge = document.getElementById('bare-server-badge');
+    badge.textContent = running ? 'Running' : 'Stopped';
+    badge.style.background = running ? '#16a34a' : '#dc2626';
+    badge.style.color = '#fff';
+    badge.style.padding = '2px 8px';
+    badge.style.borderRadius = '12px';
+    document.getElementById('bare-start-btn').disabled = running;
+    document.getElementById('bare-stop-btn').disabled = !running;
+    document.getElementById('bare-server-pid').textContent = (data.server && data.server.pid) || '-';
+    document.getElementById('bare-server-uptime').textContent = (data.server && data.server.uptime) || '-';
+    document.getElementById('bare-server-relays').textContent = (data.relays || []).length;
+    document.getElementById('bare-server-cmd').textContent = (data.server && data.server.cmdline) || 'bare:server';
+    if (data.config && data.config.url) {
+        document.getElementById('bare-server-listen').textContent = data.config.url + '/dashboard/{room}?token={api_token}';
+    }
+}
+
+async function controlBareServer(action) {
+    document.getElementById('bare-server-message').textContent = action + ' in progress...';
+    try {
+        const response = await fetch('/api/bare-websocket/' + action, {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json'
+            }
+        });
+        const data = await response.json();
+        renderBareServerStatus(data);
+        document.getElementById('bare-server-message').textContent = data.message || (action + ' complete');
+    } catch (error) {
+        document.getElementById('bare-server-message').textContent = 'Failed to ' + action + ': ' + error.message;
+        refreshBareServerStatus();
+    }
+}
+
 // Initialize the manager
 initializeManager();
+refreshBareServerStatus();
+setInterval(refreshBareServerStatus, 15000);
 </script>
 
 <style>
@@ -643,7 +727,7 @@ Client Browser ←→ WebSocket Server (RealtimeWebsocket)
    ↓
    initializeClient()
    ↓
-   new WebSocket(wss://richbot9000.com:9501) → ConnectionManager.handleNewConnection()
+   new WebSocket(wss://{domain}:{port}) → ConnectionManager.handleNewConnection()
    ↓
    Authenticate Token → Register Client → Send Connection Established
    ↓

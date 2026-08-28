@@ -78,7 +78,10 @@
             const password = document.getElementById('richbotPassword').value;
 
             try {
+
+                               
                 const response = await axios.post('/api/login', {email, password});
+
                 appState.user = response.data.user;
                 if(!appState.user.roles) appState.user.roles = [];
 

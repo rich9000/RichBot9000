@@ -66,7 +66,7 @@ async function connect(connectionId, connectionData) {
             document.getElementById('mic-toggle').disabled = true;
             document.getElementById('send-button').disabled = true;
             
-            socket = new WebSocket(`wss://richbot9000.com:9501?token=${appState.apiToken}&connection_id=${connectionId}`);
+            socket = new WebSocket(`${window.appConfig.wsUrl}?token=${appState.apiToken}&connection_id=${connectionId}`);
 
             await new Promise((resolve, reject) => {
                 socket.addEventListener('open', () => {

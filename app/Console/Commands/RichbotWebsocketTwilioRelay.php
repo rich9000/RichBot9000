@@ -9,6 +9,14 @@ use React\Socket\Connector as ReactConnector;
 use Illuminate\Support\Facades\Log;
 use App\Models\Assistant;
 use App\Services\Logging\OpenAILogger;
+use App\Services\OpenAI\RealtimeMessageHandler;
+use App\Services\ToolExecutor;
+use App\Services\CodingExecutor;
+use App\Models\Conversation;
+use App\Models\Message; 
+use App\Models\User;
+//use App\Services\AudioRecorder;
+
 
 class RichbotWebsocketTwilioRelay extends Command
 {
@@ -19,7 +27,9 @@ class RichbotWebsocketTwilioRelay extends Command
     private $openaiConn;
     private $chatId;
     private $assistant;
+    private $conversation;
     private $currentResponse = null;
+    private $audioRecorder;
 
     public function handle()
     {
@@ -27,11 +37,19 @@ class RichbotWebsocketTwilioRelay extends Command
         $this->streamSid = $this->argument('stream_sid');
         $assistantId = $this->argument('assistant_id');
 
+        //$this->audioRecorder = new AudioRecorder($this->chatId,$this->streamSid);
+
         $this->assistant = Assistant::find($assistantId);
 
         if (!$this->assistant) {
             Log::error("Richbot Twilio Relay: Assistant not found", ['assistant_id' => $assistantId]);
             return;
+        }
+
+        $this->conversation = Conversation::where('id',$this->chatId)->first();
+
+        if($this->conversation->system_message){
+            $this->assistant->system_message .= "\n\n".$this->conversation->system_message;
         }
 
         // Log connection details
@@ -44,6 +62,10 @@ class RichbotWebsocketTwilioRelay extends Command
 
         $initialConfig = $this->getInitialSessionConfig();
 
+    
+
+        
+
         $loop = Factory::create();
         $connector = new Connector($loop, new ReactConnector($loop, [
             'tls' => [
@@ -54,7 +76,7 @@ class RichbotWebsocketTwilioRelay extends Command
         ]));
 
         // Connect to Richbot
-        $richbotUrl = "wss://richbot9000.com:9501/relay/{$this->chatId}/{$assistantId}";
+        $richbotUrl = "wss://".config('app.domain').":".config('app.ws_port')."/relay/{$this->chatId}/{$assistantId}";
         $connector($richbotUrl)
             ->then(function($richbotConn) use ($loop, $connector, $initialConfig) {
 
@@ -77,22 +99,24 @@ class RichbotWebsocketTwilioRelay extends Command
 
                 $connector($openaiUrl, [], $openaiHeaders)
                     ->then(function($openaiConn) use ($loop, $initialConfig) {
+
+                        
                         Log::info("Richbot Twilio Relay: Connected to OpenAI WebSocket");
 
                         $this->openaiConn = $openaiConn;
-
-                        Log::info("Richbot Twilio Relay: Sending initial session configuration");
 
                         // Handle messages from Richbot (which will be Twilio media stream messages)
                         $this->richbotConn->on('message', function($msg) {
                             $this->handleTwilioMessage($msg);
                         });
 
+
                         // Handle messages from OpenAI
                         $this->openaiConn->on('message', function($msg) {
                             $this->handleOpenAIMessage($msg);
                         });
 
+                        
                         // Set up heartbeat
                         $loop->addPeriodicTimer(30, function() {
                             $this->sendHeartbeat();
@@ -110,8 +134,14 @@ class RichbotWebsocketTwilioRelay extends Command
                         });
                         
                         // Send initial session configuration
+                        Log::info("Richbot Twilio Relay-> Sending initial session configuration".json_encode($initialConfig,JSON_PRETTY_PRINT,256));
+
                         $this->openaiConn->send(json_encode($initialConfig));
+
+                        Log::info("Richbot Twilio Relay-> Sending response.create");
+
                         $this->openaiConn->send(json_encode(['type' => 'response.create']));
+
 
                     }, function($e) use ($loop) {
                         Log::error("Richbot Twilio Relay: Could not connect to OpenAI", [
@@ -129,11 +159,116 @@ class RichbotWebsocketTwilioRelay extends Command
 
         $loop->run();
     }
+    private function handleFunction($message)
+    {
+
+        Log::channel('openai_tools')->info("Richbot Twilio Relay: Handling function call", [
+            'message' => json_encode($message,JSON_PRETTY_PRINT,256)
+        ]);
+
+        $message = $message['item'];
+
+
+
+        $callId = $message['call_id'];
+        $method_name = $message['name'];
+        $method_args = json_decode($message['arguments'], true);
+        
+        // Add tool usage logging
+        Log::channel('openai_tools')->info("Tool called", [
+            'tool' => $method_name,
+            'arguments' => $method_args,
+            'call_id' => $callId,
+    
+        ]);
+
+     
+        $data = null;
+        $optional_objects = [
+
+            
+            new ToolExecutor(),
+            new CodingExecutor()
+
+        ];
+
+        try {
+            // First check if method exists in this class
+            if (method_exists($this, $method_name)) {
+                Log::channel('openai_tools')->info('Executing method TwilioRelay:', [
+                    'method' => $method_name,
+                    'args' => $method_args
+                ]);
+                $data = call_user_func([$this, $method_name], $method_args);
+            } else {
+                // Loop through optional objects
+                foreach ($optional_objects as $index => $object) {
+                    $class_name = get_class($object);
+                    if (method_exists($object, $method_name)) {
+                        Log::channel('openai_tools')->info("Executing method on {$class_name}:", [
+                            'method' => $method_name,
+                            'args' => $method_args
+                        ]);
+                        $data = call_user_func([$object, $method_name], $method_args);
+                        Log::channel('openai_tools')->info("Function call results", [
+                            'results' => $data
+                        ]);
+                        break;
+                    }
+                }
+            }
+
+            if ($data === null) {
+                Log::channel('openai_tools')->error("No handler found for method", [
+                    'method' => $method_name,
+                    'checked_classes' => array_merge(
+                        [get_class($this)],
+                        array_map(function($obj) { return get_class($obj); }, $optional_objects)
+                    )
+                ]);
+            }
+
+       //     Message::create([
+      //          'conversation_id' => $this->streamSid,
+      //          'role' => 'tool',
+      //          'content' => json_encode($data)
+      //      ]);
+
+            // Send function output to OpenAI
+            $functionOutput = [
+                'type' => 'conversation.item.create',
+                'item' => [
+                    'type' => 'function_call_output',
+                    'call_id' => $callId,
+                    'output' => json_encode($data)
+                ]
+            ];
+
+            Log::channel('openai_tools')->info("Sending function output to OpenAI", [
+                'output' => $functionOutput,
+                'call_id' => $callId
+            ]);
+
+            $this->openaiConn->send(json_encode($functionOutput));
+            $this->openaiConn->send(json_encode(['type'=>'response.create']));
+
+
+        } catch (\Exception $e) {
+            Log::channel('openai_tools')->error("Error executing function call", [
+                'error' => $e->getMessage(),
+                'method' => $method_name,
+                'arguments' => $method_args,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+        }
+
+        unset($this->functionCallBuffer[$callId]);
+    }
 
     private function handleTwilioMessage($msg)
     {
-        try 
-        {
+        try {
             $message = json_decode($msg, true);
             
             Log::debug("Twilio Relay received message", [
@@ -141,6 +276,8 @@ class RichbotWebsocketTwilioRelay extends Command
                 'raw_message' => $msg,
                 'decoded_message' => $message
             ]);
+
+           
 
             if($message && isset($message['streamSid'])){
 
@@ -158,20 +295,20 @@ class RichbotWebsocketTwilioRelay extends Command
 
             // Handle Twilio media messages
             if ($message && isset($message['media']) && isset($message['media']['payload'])) {
+                // Decode base64 μ-law audio from Twilio
+                $ulawData = base64_decode($message['media']['payload']);
+                
+                // Save the original μ-law data for input
+                $this->saveAudioChunk($ulawData, 'input');  // Save the raw μ-law data
+                
+                // Convert μ-law to PCM16 and upsample to 24kHz for OpenAI
+                $pcm16Data = $this->convertAudioForOpenAI($ulawData);
 
-                    // Decode base64 μ-law audio from Twilio
-            $ulawData = base64_decode($message['media']['payload']);
-            
-            // Convert μ-law to PCM16 and upsample to 24kHz
-            $pcm16Data = $this->convertAudioForOpenAI($ulawData);
-            
-          
-
-                // Twilio sends mulaw/8000 audio
+                // Send to OpenAI
                 $audio_append = [
                     'type' => 'input_audio_buffer.append',
                     'audio' => base64_encode($pcm16Data),
-                    
+                   // 'audio' => $message['media']['payload'],
                 ];
                 $this->openaiConn->send(json_encode($audio_append));
             }
@@ -212,6 +349,44 @@ class RichbotWebsocketTwilioRelay extends Command
                 case 'response.created':
                     $this->currentResponse = $message['response']['id'];
                     break;
+                case 'session.created':
+                    
+                    Log::info("Richbot Twilio Relay: Session created", [
+                        
+                        'session_config' => json_encode($message['session'],JSON_PRETTY_PRINT,256)
+                    ]);
+
+
+                    break;
+                case 'response.output_item.done':
+                    Log::info("Richbot Twilio Relay: Output item done", [
+                        'response_id' => $message['response_id'],
+                        'output_index' => $message['output_index'],
+                        'item' => $message['item']
+                    ]);
+                    
+                    // Check for function calls in the item
+                    if (isset($message['item']) && $message['item']['type'] === 'function_call') {
+
+                        $data = $this->handleFunction($message);
+
+
+                        $functionCall = [
+                            'type' => 'function_call',
+                            'call_id' => $message['item']['call_id'],
+                            'name' => $message['item']['name'],
+                            'arguments' => $message['item']['arguments'],
+                            'results' => $data,
+                        ];
+
+                        Log::info("Richbot Twilio Relay: Forwarding function call to Richbot", [
+                            'function_call' => json_encode($functionCall,JSON_PRETTY_PRINT,256)
+                        ]);
+                        
+                        // Forward function call to Richbot connection
+                        $this->richbotConn->send(json_encode($functionCall));
+                    }
+                    break;
                 case 'response.done':
                     $this->currentResponse = null;
                     break;
@@ -232,23 +407,25 @@ class RichbotWebsocketTwilioRelay extends Command
 
     private function handleAudioDelta($message)
     {
-        if (!isset($message['delta'])) {
-            return;
-        }
+        if (!isset($message['delta'])) return;
 
         try {
             // Decode base64 PCM from OpenAI
             $pcmData = base64_decode($message['delta']);
+
+
+       //     $this->audioRecorder->saveAudioChunk($pcmData, 'output', 'pcm16');
             
-            // Convert PCM16 to μ-law with downsample from 24kHz to 8kHz
+            // Save OpenAI's response audio
+            $this->saveAudioChunk($pcmData, 'output');
+            
+            // Convert and send to Twilio as before...
             $ulawData = '';
             $samples = unpack('s*', $pcmData);
             $sampleCount = count($samples);
             
-            // Take every third sample (24kHz -> 8kHz)
             for ($i = 1; $i <= $sampleCount; $i += 3) {
-                $sample = $samples[$i];
-                $ulawData .= chr($this->linearToMulaw($sample));
+                $ulawData .= chr($this->linearToMulaw($samples[$i]));
             }
             
             $twilioMessage = [
@@ -341,8 +518,8 @@ class RichbotWebsocketTwilioRelay extends Command
                 'voice' => 'sage',
                 'input_audio_format' => 'pcm16',  // Tell OpenAI we're sending mulaw
                 'output_audio_format' => 'pcm16', // Request mulaw output
-                'input_audio_sample_rate' => 8000, // Twilio's sample rate
-                'output_audio_sample_rate' => 8000, // Twilio's sample rate
+                //'input_audio_sample_rate' => 8000, // Twilio's sample rate
+                //'output_audio_sample_rate' => 8000, // Twilio's sample rate
                 'input_audio_transcription' => [
                     'model' => 'whisper-1'
                 ],
@@ -367,10 +544,23 @@ class RichbotWebsocketTwilioRelay extends Command
             // Decode base64 μ-law audio from Twilio
             $ulawData = base64_decode($message['media']['payload']);
             
-            // Convert μ-law to PCM16 and upsample to 24kHz
+            // Save the raw audio
+            $this->saveAudioChunk($ulawData, 'input');
+            
+            // Convert and send to OpenAI as before...
             $pcm16Data = $this->convertAudioForOpenAI($ulawData);
             
-            // Send to OpenAI
+            $openaiMessage = [
+                'event' => 'message',
+                'type' => 'audio',
+                'data' => [
+                    'audio' => base64_encode($pcm16Data),
+                    'format' => 'g711_ulaw'             
+                ]
+            ];
+
+            /*
+  
             $openaiMessage = [
                 'event' => 'message',
                 'type' => 'audio',
@@ -380,63 +570,153 @@ class RichbotWebsocketTwilioRelay extends Command
                     'sampleRate' => 24000
                 ]
             ];
+            */
             
             $this->openaiConn->send(json_encode($openaiMessage));
             
         } catch (\Exception $e) {
-            Log::error("Error processing audio message", [
-                'error' => $e->getMessage()
-            ]);
+            Log::error("Error processing audio message", ['error' => $e->getMessage()]);
         }
     }
 
     private function convertAudioForOpenAI($ulawData)
     {
-        // Convert μ-law to PCM16
+        // Create μ-law to linear lookup table
+        static $ulaw2linear = null;
+        if ($ulaw2linear === null) {
+            $ulaw2linear = array_fill(0, 256, 0);
+            
+            // Standard μ-law to linear conversion table
+            for ($i = 0; $i < 256; $i++) {
+                $ulawByte = ~$i; // Invert bits
+                
+                $sign = ($ulawByte & 0x80) ? -1 : 1;
+                $exponent = ($ulawByte >> 4) & 0x07;
+                $mantissa = ($ulawByte & 0x0F);
+                
+                // Proper scaling for 16-bit PCM
+                if ($exponent == 0) {
+                    $sample = (($mantissa << 3) + 132) * $sign;
+                } else {
+                    $sample = (($mantissa << ($exponent + 3)) + (132 << $exponent)) * $sign;
+                }
+                
+                // Scale to full 16-bit range
+                $sample *= 8;
+                
+                // Ensure we're in 16-bit range
+                $sample = max(-32768, min(32767, $sample));
+                
+                $ulaw2linear[$i] = $sample;
+            }
+        }
+
+        // Convert using lookup table
         $pcm16 = '';
         for ($i = 0; $i < strlen($ulawData); $i++) {
-            $sample = $this->mulawToLinear(ord($ulawData[$i]));
-            $pcm16 .= pack('s', $sample); // 's' packs as signed 16-bit
+            $ulawByte = ord($ulawData[$i]);
+            $sample = $ulaw2linear[$ulawByte];
+            $pcm16 .= pack('s', $sample);
         }
         
-        // Upsample from 8kHz to 24kHz using linear interpolation
+        // Upsample from 8kHz to 24kHz using improved interpolation
         return $this->upsampleAudio($pcm16, 8000, 24000);
-    }
-
-    private function mulawToLinear($ulawByte)
-    {
-        $BIAS = 0x84;
-        $exp_lut = [0, 132, 396, 924, 1980, 4092, 8316, 16764];
-        
-        $ulawByte = ~$ulawByte;
-        $sign = ($ulawByte & 0x80) ? -1 : 1;
-        $exponent = ($ulawByte >> 4) & 0x07;
-        $mantissa = $ulawByte & 0x0F;
-        $sample = $exp_lut[$exponent] + ($mantissa << ($exponent + 3));
-        
-        return $sign * ($sample - $BIAS);
     }
 
     private function upsampleAudio($pcmData, $fromRate, $toRate)
     {
-        $samples = unpack('s*', $pcmData); // Unpack as 16-bit signed integers
+        $samples = unpack('s*', $pcmData);
         $ratio = $toRate / $fromRate;
         $result = '';
+        $sampleCount = count($samples);
         
-        // Linear interpolation
-        for ($i = 0; $i < count($samples) * $ratio; $i++) {
+        // Moving average window for pre-filtering
+        $windowSize = 4;
+        $filtered = [];
+        for ($i = 1; $i <= $sampleCount; $i++) {
+            $sum = 0;
+            $count = 0;
+            for ($j = max(1, $i - $windowSize); $j <= min($sampleCount, $i + $windowSize); $j++) {
+                $sum += $samples[$j];
+                $count++;
+            }
+            $filtered[$i] = (int)($sum / $count);
+        }
+        
+        // Improved upsampling with linear interpolation and post-filtering
+        for ($i = 0; $i < $sampleCount * $ratio; $i++) {
             $pos = $i / $ratio;
             $index1 = floor($pos);
-            $index2 = min(ceil($pos), count($samples));
+            $index2 = min(ceil($pos), $sampleCount - 1);
             $fraction = $pos - $index1;
             
-            $sample1 = $samples[$index1 + 1] ?? 0; // +1 because unpack indexes start at 1
-            $sample2 = $samples[$index2 + 1] ?? $sample1;
+            $sample1 = $filtered[$index1 + 1] ?? 0;
+            $sample2 = $filtered[$index2 + 1] ?? $sample1;
             
+            // Linear interpolation
             $interpolated = (int)($sample1 * (1 - $fraction) + $sample2 * $fraction);
+            
+            // Ensure the sample is within 16-bit range
+            $interpolated = max(-32768, min(32767, $interpolated));
+            
             $result .= pack('s', $interpolated);
         }
         
         return $result;
     }
+
+    private function saveAudioChunk($audioData, $direction)
+    {
+        try {
+            $timestamp = date('Y-m-d_H-i-s');
+            $chatId = $this->chatId;
+            $streamSid = $this->streamSid;
+            
+            // Create directory structure if it doesn't exist
+            $directory = storage_path("app/audio_recordings/{$streamSid}/{$direction}");
+            if (!file_exists($directory)) {
+                mkdir($directory, 0755, true);
+            }
+
+            // For input (from Twilio), data is μ-law
+            // For output (from OpenAI), data is PCM16
+            // Save with appropriate format indicator in filename
+            $format = ($direction === 'input') ? 'ulaw' : 'pcm16';
+            $sampleRate = ($direction === 'input') ? '8000' : '24000';
+            
+            $filename = "{$directory}/{$timestamp}_{$format}_{$sampleRate}_" . uniqid() . ".raw";
+            
+            // Save the raw audio data
+            if (file_put_contents($filename, $audioData) === false) {
+                Log::error("Failed to save audio chunk", [
+                    'direction' => $direction,
+                    'filename' => $filename,
+                    'size' => strlen($audioData)
+                ]);
+                return;
+            }
+
+            Log::debug("Saved audio chunk", [
+                'direction' => $direction,
+                'filename' => $filename,
+                'format' => $format,
+                'sample_rate' => $sampleRate,
+                'size' => strlen($audioData)
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error("Error saving audio chunk", [
+                'error' => $e->getMessage(),
+                'direction' => $direction,
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+
+    
+    
+
+
+
 } 

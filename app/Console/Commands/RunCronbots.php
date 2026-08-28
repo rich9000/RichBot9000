@@ -102,8 +102,14 @@ class RunCronbots extends Command
         $this->info("Processing cronbot ID: {$cronbot->id}");
         
         try {
+            // Check if assistant exists
+            if (!$cronbot->assistant) {
+                throw new \Exception("Assistant not found for cronbot ID: {$cronbot->id}");
+            }
+            
             // Execute the assistant with the cronbot's prompt
             $run_info = $cronbot->assistant->startOpenAiRun($cronbot->prompt);
+            
             $conversation = Conversation::find($run_info['conversation_id']);
 
             if (!$conversation) {
@@ -170,10 +176,10 @@ class RunCronbots extends Command
                                 ];
 
                                 // Handle success/fail tools
-                                if ($cronbot->success_tool_id && $method_name === $cronbot->successTool->name) {
+                                if ($cronbot->success_tool_id && $cronbot->successTool && $method_name === $cronbot->successTool->name) {
                                     Log::info("Success tool executed: $method_name");
                                 }
-                                if ($cronbot->fail_tool_id && $method_name === $cronbot->failTool->name) {
+                                if ($cronbot->fail_tool_id && $cronbot->failTool && $method_name === $cronbot->failTool->name) {
                                     Log::info("Fail tool executed: $method_name");
                                 }
                             } else {

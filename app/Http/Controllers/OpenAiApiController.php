@@ -286,8 +286,11 @@ class OpenAiApiController extends Controller
     }
 
     // Other methods related to OpenAI API interactions...
-    public function listFiles($directory = '/var/www/html/richbot9000.com/', $relativePath = '')
+    public function listFiles($directory = null, $relativePath = '')
     {
+        if ($directory === null) {
+            $directory = config('app.base_path');
+        }
         $result = [];
 
 

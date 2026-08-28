@@ -6,9 +6,14 @@ use Illuminate\Console\Command;
 use OpenSwoole\WebSocket\Server;
 use OpenSwoole\Table;
 use Illuminate\Support\Facades\Log;
-use App\Services\ConnectionManager;
 
+use App\Services\ConnectionManager;
+use App\Services\Logging\OpenAILogger;
 use Symfony\Component\Process\Process;
+use App\Models\Conversation;
+use App\Models\User;
+use App\Models\Assistant;
+use App\Models\Message;
 
 class RichbotWebsocket extends Command
 {
@@ -16,7 +21,6 @@ class RichbotWebsocket extends Command
     protected $description = 'Start the Richbot WebSocket server';
 
     private ConnectionManager $connectionManager;
-    
     private Server $server;
     private Table $relayTable;
     private Table $forwardTable;
@@ -26,20 +30,29 @@ class RichbotWebsocket extends Command
         parent::__construct();
         $this->connectionManager = $connectionManager;
 
+        $this->clientTable = new Table(1024);
+        $this->clientTable->column('type', Table::TYPE_STRING, 32);      //  'webclient' or 'twilio_phone'
+        $this->clientTable->column('status', Table::TYPE_STRING, 32);
+        $this->clientTable->column('stream_sid', Table::TYPE_STRING, 64);
+        $this->clientTable->column('chat_id', Table::TYPE_STRING, 64);
+        $this->clientTable->column('user_fd', Table::TYPE_INT);
+        $this->clientTable->column('relay_fd', Table::TYPE_INT);
+        $this->clientTable->column('assistant_id', Table::TYPE_INT);
+        $this->clientTable->create();
+
         // Relay connections table - stores Ratchet client connections
-        $this->relayTable = new Table(1024);
-        
-        $this->relayTable->column('type', Table::TYPE_STRING, 32);      // 'openai' or 'richbot'
+        $this->relayTable = new Table(1024);        
+        $this->relayTable->column('type', Table::TYPE_STRING, 32);      //  'webclient' or 'twilio_phone'
         $this->relayTable->column('status', Table::TYPE_STRING, 32);
-        
+        $this->relayTable->column('stream_sid', Table::TYPE_STRING, 64);
         $this->relayTable->column('user_fd', Table::TYPE_INT);
         $this->relayTable->column('relay_fd', Table::TYPE_INT);
-        $this->relayTable->column('assistant_id', Table::TYPE_INT); // Changed to STRING type
+        $this->relayTable->column('assistant_id', Table::TYPE_INT);
         $this->relayTable->column('last_activity', Table::TYPE_INT);
         $this->relayTable->column('pid', Table::TYPE_INT);
         $this->relayTable->create();
 
-        // New forward table
+        // Forward table
         $this->forwardTable = new Table(1024);
         $this->forwardTable->column('source_fd', Table::TYPE_INT);
         $this->forwardTable->column('target_fd', Table::TYPE_INT);
@@ -47,14 +60,16 @@ class RichbotWebsocket extends Command
         $this->forwardTable->column('assistant_id', Table::TYPE_INT);
         $this->forwardTable->column('last_event_id', Table::TYPE_STRING, 64);
         $this->forwardTable->column('last_activity', Table::TYPE_INT);
+        $this->forwardTable->column('stream_sid', Table::TYPE_STRING, 64);
         $this->forwardTable->column('message_count', Table::TYPE_INT);
-        $this->forwardTable->column('status', Table::TYPE_STRING, 32); // 'active', 'paused', 'closed'
+        $this->forwardTable->column('status', Table::TYPE_STRING, 32);
         $this->forwardTable->create();
     }
 
     private function extractTwilioStatusInfo($uri)
     {
-        if (preg_match('#^/twilio_status$#', $uri)) {
+        // Pattern: /twilio/status
+        if (preg_match('#^/twilio/status$#', $uri)) {
             return ['type' => 'twilio_status'];
         }
         return null;
@@ -79,8 +94,28 @@ class RichbotWebsocket extends Command
         return null;
     }
 
+    private function extractTwilioInfo($uri)
+    {
+        // Add debug logging
+        Log::info("Extracting Twilio info from URI", ['uri' => $uri]);
+        
+        // Pattern: /twilio/{callSid}/{assistant_id}
+        if (preg_match('#^/twilio/([^/]+)/(\d+)$#', $uri, $matches)) {
+            $info = [
+                'type' => 'twilio_phone',
+                'call_sid' => $matches[1],
+                'assistant_id' => intval($matches[2])
+            ];
+            Log::info("Twilio info extracted", $info);
+            return $info;
+        }
+        
+        Log::info("No Twilio info matched");
+        return null;
+    }
+
     // Add helper methods for the forward table
-    private function addForwardRoute($sourceFd, $targetFd, $chatId, $assistantId)
+    private function addForwardRoute($sourceFd, $targetFd, $chatId, $assistantId, $streamSid = null)
     {
         $this->forwardTable->set($sourceFd, [
             'source_fd' => $sourceFd,
@@ -88,6 +123,7 @@ class RichbotWebsocket extends Command
             'chat_id' => $chatId,
             'assistant_id' => $assistantId,
             'last_event_id' => '',
+            'stream_sid' => $streamSid,
             'last_activity' => time(),
             'message_count' => 0,
             'status' => 'active'
@@ -117,56 +153,274 @@ class RichbotWebsocket extends Command
         return $route ? $route['target_fd'] : null;
     }
 
+    private function handleTwilioConnection($server, $request, $info)
+    {
+        try {
+
+            $this->info("Twilio Connection Info" . json_encode($info,JSON_PRETTY_PRINT));
+            $this->info("Request" . json_encode($request,JSON_PRETTY_PRINT));
+            
+            $chatId     = $info['call_sid'];
+            //$streamSid  = $info['call_sid'];
+
+            $clientInfo = $this->clientTable->get($request->fd);
+            //$clientInfo['stream_sid'] = $streamSid;
+            $clientInfo['chat_id'] = $chatId;
+            $clientInfo['assistant_id'] = $info['assistant_id'];
+            $clientInfo['type'] = 'twilio_phone';
+            $clientInfo['status'] = 'waiting';
+            $clientInfo['user_fd'] = $request->fd;
+
+            $this->clientTable->set($request->fd, $clientInfo);
+
+            $relayInfo = $this->relayTable->get($chatId);
+            $relayInfo['type'] = 'twilio_phone';
+            $relayInfo['status'] = 'waiting';
+            //$relayInfo['stream_sid'] = $streamSid;
+            $relayInfo['user_fd'] = $request->fd;
+            $relayInfo['assistant_id'] = $info['assistant_id'];
+            $this->relayTable->set($chatId, $relayInfo);
+
+                 
+            //start the connection to openaiwebsocketrelay here instead of on connection.
+
+            return $chatId;
+        } catch (\Exception $e) {
+            Log::error("Error handling Twilio connection", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    // And let's update the message handling to use the client table
+    private function handleMessage(Server $server, $frame)
+    {
+        try {
+
+
+            $data = json_decode($frame->data, true);
+
+            
+
+            $clientInfo = $this->clientTable->get($frame->fd);
+            $chatId = $clientInfo['chat_id'];
+            $relayInfo = $this->relayTable->get($chatId);
+            $route = $this->forwardTable->get($frame->fd);
+
+    
+            Log::info("Client Info". json_encode($clientInfo,JSON_PRETTY_PRINT));
+            Log::info("Relay Info". json_encode($relayInfo,JSON_PRETTY_PRINT));
+            Log::info("Route". json_encode($route,JSON_PRETTY_PRINT));
+
+            if (!$chatId) {
+                Log::error("No chat ID or client info found", [
+                    'client_info' => $clientInfo,
+                    'route' => $route
+                ]);
+                return;
+            }
+
+            // Log message flow
+            Log::channel('message_flow')->info("Message forwarded", [
+                'direction' => $frame->fd === $clientInfo['user_fd'] ? 'to relay' : 'to client',
+                'from_fd' => $frame->fd,
+                'to_fd' => $route['target_fd'] ?? 'no target',
+                'client_type' => $clientInfo['type'],
+                'event'=> $data['event'] ?? null,
+                'message_type' => is_array($data) ? ($data['type'] ?? 'unknown') : 'raw',
+                'message' => print_r($data,true),
+            ]);
+
+            // Update activity timestamps
+            $relayInfo['last_activity'] = time();
+            $clientInfo['last_activity'] = time();
+            $this->clientTable->set($frame->fd, $clientInfo);
+            $this->relayTable->set($chatId, $relayInfo);
+           
+
+            if(isset($data['event']) && $data['event'] == 'start'){
+
+                
+                $streamSid = $data['streamSid'] ?? null;
+                Log::info("Twilio Relay received start event", [
+                    'stream_sid' => $data['streamSid'] ?? 'none',
+                    'data' => $data,
+                    'streamSid'=>$streamSid 
+                ]);
+
+                if($streamSid){
+
+                    $clientInfo['stream_sid'] = $streamSid;
+                    $relayInfo['stream_sid'] = $streamSid;
+
+                    //start the connection to openaiwebsocktwilioetrelay here instead of on connection.
+                    
+                    $this->clientTable->set($frame->fd, $clientInfo);
+                    $this->relayTable->set($chatId, $relayInfo);
+
+
+                }
+
+
+// Start the relay process
+$artisanCommand = [
+    'php',
+    'artisan',
+    'richbot:websocket-twilio-relay',
+    $chatId,
+    $streamSid,
+    $clientInfo['assistant_id']
+];
+
+$process = new Process($artisanCommand);
+$process->setTimeout(null);
+$process->disableOutput();
+$process->start();
+
+// Update relay table with process ID
+$this->relayTable->set($chatId, [
+    'type' => 'twilio_phone',
+    'status' => 'waiting',
+    'user_fd' => $frame->fd,
+    'relay_fd' => 0,
+    'chat_id' => $chatId,
+    'assistant_id' => $clientInfo['assistant_id'],
+    'stream_sid' => $streamSid,
+    'last_activity' => time(),
+    'pid' => $process->getPid()
+]);
+
+Log::info("Twilio relay process started", [
+    'pid' => $process->getPid(),
+    'chat_id' => $chatId,
+    'stream_sid' => $streamSid
+]);
+
+
+
+            }
+
+            $this->clientTable->set($frame->fd, $clientInfo);
+            $this->relayTable->set($chatId, $relayInfo);
+
+            // Forward message if target exists
+            if($route && $route['target_fd']){
+                $server->push($route['target_fd'], $frame->data);
+            } else {
+
+
+                foreach($this->forwardTable as $id => $route){
+                    Log::info("Forward Route for $id", $route);
+                }
+
+                foreach($this->relayTable as $id => $relay){
+                    Log::info("Relay Route for $id", $relay);
+                }
+
+                foreach($this->clientTable as $id => $client){
+                    Log::info("Client Route for $id", $client);
+                }
+
+
+                Log::error("No target found for message", [
+                    'chat_id' => $chatId,
+                    
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error("Message handling error", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    private function handleTwilioStatusMessage($server, $request)
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            Log::info("Stream Status", $data);
+            
+            // Send 200 OK response
+            $response = new \OpenSwoole\HTTP\Response();
+            $response->status(200);
+            $response->header('Content-Type', 'application/json');
+            $response->end(json_encode(['status' => 'ok']));
+            
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Error handling Twilio status", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
     public function handle()
     {
-        $this->info('Richbot WebSocket server started');
+        $this->info('Richbot WebSocket server started. V23.01.16');
 
         $this->server = new Server('0.0.0.0', 9501, SWOOLE_PROCESS, SWOOLE_SOCK_TCP | SWOOLE_SSL);
         
         // Configure SSL with more permissive settings
         $this->server->set([
-            'ssl_cert_file' => '/etc/ssl/certs/richbot9000.crt',
-            'ssl_key_file' => '/etc/ssl/private/richbot9000.key',
+            'ssl_cert_file' => config('app.ssl_cert_file'),
+            'ssl_key_file' => config('app.ssl_key_file'),
             'ssl_verify_peer' => false,
-            
             'ssl_allow_self_signed' => true,
-       
-            
             'worker_num' => 1,
             'daemonize' => false,
             'log_level' => SWOOLE_LOG_DEBUG,
             'log_file' => storage_path('logs/websocket.log'),
             'enable_coroutine' => true,
             'task_worker_num' => 4,
-            'task_enable_coroutine' => true,  // Enable coroutines in task workers
-            'task_use_object' => true,        // Enable object-oriented style tasks
-            'task_ipc_mode' => 1,            // Use Unix socket for task IPC
+            'task_enable_coroutine' => true,
+            'task_use_object' => true,
+            'task_ipc_mode' => 1,
             'message_queue_key' => ftok(public_path('index.php'), 1)
         ]);
 
         $this->connectionManager->setServer($this->server);
 
         $this->server->on('Open', function (Server $server, $request) {
-            
             try {
                 $uri = $request->server['request_uri'];       
-                
-                
-                $twilioStatus = $this->extractTwilioStatusInfo($uri);
 
+                // Check for Twilio connection
+                $twilioInfo = $this->extractTwilioInfo($uri);
+                if ($twilioInfo) {
+                    $this->info("Twilio Info from Connection" . json_encode($twilioInfo,JSON_PRETTY_PRINT));
+                    $chatId = $this->handleTwilioConnection($server, $request, $twilioInfo);
+                    Log::info("Twilio connection established", [
+                        'chat_id' => $chatId,
+                        'info' => $twilioInfo,
+                        'stream_sid' => $twilioInfo['call_sid']
+                    ]);
+                    return;
+                } else {
+
+                    Log::info("No Twilio Info found", ['uri' => $uri]);
+                }
 
                 $statusCheck = $this->extractStatusInfo($uri);
-                Log::info("Status check", ['status' => $statusCheck ? $statusCheck : 'none']);
+
+               
                 if($statusCheck){
+ Log::info("Status check", ['status' => $statusCheck ? $statusCheck : 'none']);
 
                     return;
-
 
                 }
                 
                 // Check if this is a relay connection
                 $relayInfo = $this->extractRelayInfo($uri);
+
                 if ($relayInfo) {
+
                     Log::info("Relay connection detected", $relayInfo);
                     
                     // Get the link data from relay table
@@ -181,13 +435,22 @@ class RichbotWebsocket extends Command
                     Log::info("Link data found", $linkData);
 
                     $linkData['relay_fd'] = $request->fd;
-                    $linkData['status'] = 'in_chat';
+                    $linkData['status'] = 'in_chat';                    
                     $linkData['last_activity'] = time();
                     
                     $this->relayTable->set($relayInfo['chat_id'], $linkData);
 
-                    $this->addForwardRoute($request->fd, $linkData['user_fd'], $relayInfo['chat_id'], $linkData['assistant_id']);
-                    $this->addForwardRoute($linkData['user_fd'], $request->fd, $relayInfo['chat_id'], $linkData['assistant_id']);
+                    $this->addForwardRoute($request->fd, $linkData['user_fd'], $relayInfo['chat_id'], $linkData['assistant_id'], $relayInfo['chat_id']);
+                    $this->addForwardRoute($linkData['user_fd'], $request->fd, $relayInfo['chat_id'], $linkData['assistant_id'], $relayInfo['chat_id']);
+
+                    $this->clientTable->set($request->fd, [
+                        'type' => 'openai-relay',
+                        'status' => 'in_chat',
+                        'chat_id' => $relayInfo['chat_id'],
+                        'stream_sid' => $linkData['stream_sid'],
+                        'user_fd' => $request->fd,
+                        'assistant_id' => $linkData['assistant_id']
+                    ]);
 
                     return;
                 }
@@ -222,6 +485,7 @@ class RichbotWebsocket extends Command
                     $this->info("Assistant ID found, setting up for chat");
                     $chatId = uniqid('chat_', true);
 
+                    // Set up initial relay table entry
                     $this->relayTable->set($chatId, [
                         'user_fd' => $request->fd,
                         'assistant_id' => intval($assistantId),
@@ -230,17 +494,17 @@ class RichbotWebsocket extends Command
                         'last_activity' => time()
                     ]);
 
+                    // Start relay process
                     $artisanCommand = [
                         'php',
                         'artisan',
                         'richbot:websocket-relay',
                         $chatId,
-                        $assistantId
+                        $assistantId,
+                        '--client_type=webclient'
                     ];
-                
+
                     $process = new Process($artisanCommand);
-                    $process->setTimeout(null);
-                    $process->disableOutput();
                     $process->start();
                     
                     Log::info("Background process started with PID: " . $process->getPid());
@@ -254,8 +518,17 @@ class RichbotWebsocket extends Command
                         'last_activity' => time(),
                         'pid' => $process->getPid()
                     ]);
-                }
 
+                    
+                    $this->clientTable->set($request->fd, [
+                        'type' => 'webclient',
+                        'status' => 'waiting',
+                        'chat_id' => $chatId,
+                        'user_fd' => $request->fd,
+                        'assistant_id' => intval($assistantId)
+                    ]);
+                }
+              
 
             } catch (\Exception $e) {
                 Log::error("Connection error", [
@@ -267,357 +540,135 @@ class RichbotWebsocket extends Command
         });
 
         // Add timer setup right after server creation
-    \OpenSwoole\Timer::tick(10000, function () {
-        try {
-            $this->info("\n=== Richbot Maintenance Check ===");
-
-            // Get list of connected clients
-            $connectedClients = $this->server->getClientList();
-            if(!$connectedClients){
-                $connectedClients = [];
-            }
-            $connectedFds = array_flip($connectedClients);
-
-            Log::info("Connected clients", [
-                'count' => count($connectedClients),
-                'fds' => $connectedClients
-            ]);
-
-            // Check Forward Table for disconnected clients
-            $activeRoutes = iterator_count($this->forwardTable);
-            $routes = iterator_to_array($this->forwardTable);
-            
-            foreach ($routes as $id => $route) {
-                $sourceConnected = isset($connectedFds[$route['source_fd']]);
-                $targetConnected = isset($connectedFds[$route['target_fd']]);
-
-                if (!$sourceConnected && !$targetConnected) {
-                    // Both sides disconnected, remove the route
-                    $this->forwardTable->del($id);
-                    Log::info("Removed forward route - both sides disconnected", [
-                        'route_id' => $id,
-                        'source_fd' => $route['source_fd'],
-                        'target_fd' => $route['target_fd'],
-                        'chat_id' => $route['chat_id']
-                    ]);
-                } elseif (!$sourceConnected) {
-                    // Source disconnected, kick target
-                    $this->server->disconnect($route['target_fd'], 1001, 'Other party disconnected');
-                    $this->forwardTable->del($id);
-                    Log::info("Kicked target client - source disconnected", [
-                        'route_id' => $id,
-                        'target_fd' => $route['target_fd'],
-                        'chat_id' => $route['chat_id']
-                    ]);
-                } elseif (!$targetConnected) {
-                    // Target disconnected, kick source
-                    $this->server->disconnect($route['source_fd'], 1001, 'Other party disconnected');
-                    $this->forwardTable->del($id);
-                    Log::info("Kicked source client - target disconnected", [
-                        'route_id' => $id,
-                        'source_fd' => $route['source_fd'],
-                        'chat_id' => $route['chat_id']
-                    ]);
-                }
-            }
-
-            // Check Relay Table for disconnected clients
-            $activeRelays = iterator_count($this->relayTable);
-            $relays = iterator_to_array($this->relayTable);
-            
-            foreach ($relays as $id => $relay) {
-                $userConnected = isset($connectedFds[$relay['user_fd']]);
-                $relayConnected = isset($relay['relay_fd']) && isset($connectedFds[$relay['relay_fd']]);
-
-                if (!$userConnected && !$relayConnected) {
-                    // Both sides disconnected, remove the relay
-                    $this->relayTable->del($id);
-                    Log::info("Removed relay - both sides disconnected", [
-                        'chat_id' => $id,
-                        'user_fd' => $relay['user_fd'],
-                        'relay_fd' => $relay['relay_fd'] ?? 'N/A'
-                    ]);
-                } elseif (!$userConnected) {
-                    // User disconnected, kick relay
-                    if ($relayConnected) {
-                        $this->server->disconnect($relay['relay_fd'], 1001, 'User disconnected');
-                    }
-                    $this->relayTable->del($id);
-                    Log::info("Kicked relay client - user disconnected", [
-                        'chat_id' => $id,
-                        'relay_fd' => $relay['relay_fd']
-                    ]);
-                } elseif (!$relayConnected && isset($relay['relay_fd'])) {
-                    // Relay disconnected, kick user
-                    $this->server->disconnect($relay['user_fd'], 1001, 'Relay disconnected');
-                    $this->relayTable->del($id);
-                    Log::info("Kicked user client - relay disconnected", [
-                        'chat_id' => $id,
-                        'user_fd' => $relay['user_fd']
-                    ]);
-                }
-            }
-
-            // Continue with existing status reporting...
-            $this->info("\nForward Table Status:");
-            $this->info("Active Routes: " . iterator_count($this->forwardTable));
-            
-            if ($routes) {
-                $this->info("\nActive Routes Details:");
-                foreach ($routes as $id => $route) {
-                    $this->info(sprintf(
-                        "  Route %s:\n    Source: %d\n    Target: %d\n    Chat: %s\n    Assistant: %d\n    Last Activity: %s",
-                        $id,
-                        $route['source_fd'],
-                        $route['target_fd'],
-                        $route['chat_id'],
-                        $route['assistant_id'],
-                        date('Y-m-d H:i:s', $route['last_activity'])
-                    ));
-                }
-            }
-
-            // Relay Table Status
-            $activeRelays = iterator_count($this->relayTable);
-            $relays = iterator_to_array($this->relayTable);
-            
-            $this->info("\nRelay Table Status:");
-            $this->info("Active Relays: {$activeRelays}");
-            
-            if ($relays) {
-                $this->info("\nActive Relays Details:");
-                foreach ($relays as $id => $relay) {
-                    $this->info(sprintf(
-                        "  Relay %s:\n    Type: %s\n    Status: %s\n    User FD: %d\n    Relay FD: %d\n    Assistant: %d\n    Last Activity: %s",
-                        $id,
-                        $relay['type'],
-                        $relay['status'],
-                        $relay['user_fd'],
-                        $relay['relay_fd'] ?? 'N/A',
-                        $relay['assistant_id'],
-                        date('Y-m-d H:i:s', $relay['last_activity'])
-                    ));
-                }
-            }
-
-            // Check for stale connections
-            $staleFound = false;
-            foreach ($this->relayTable as $id => $row) {
-                if (time() - $row['last_activity'] > 300) {
-                    if (!$staleFound) {
-                        $this->info("\nStale Connections:");
-                        $staleFound = true;
-                    }
-                    
-                    $this->info(sprintf(
-                        "  ID: %s\n  Last Activity: %s\n  Status: %s\n  Inactive for: %d minutes",
-                        $id,
-                        date('Y-m-d H:i:s', $row['last_activity']),
-                        $row['status'],
-                        floor((time() - $row['last_activity']) / 60)
-                    ));
-                }
-            }
-
-            if (!$staleFound) {
-                $this->info("\nNo stale connections found.");
-            }
-
-            $this->info("\n=== End Maintenance Check ===\n");
-
-            // Fix the Log::info call by providing proper array context
-            Log::info("Richbot: Maintenance Check Summary", [
-                'timestamp' => date('Y-m-d H:i:s'),
-                'forward_routes' => [
-                    'count' => $activeRoutes,
-                    'routes' => array_map(function($route) {
-                        return [
-                            'source_fd' => $route['source_fd'],
-                            'target_fd' => $route['target_fd'],
-                            'chat_id' => $route['chat_id'],
-                            'assistant_id' => $route['assistant_id'],
-                            'last_activity' => date('Y-m-d H:i:s', $route['last_activity'])
-                        ];
-                    }, $routes)
-                ],
-                'relay_table' => [
-                    'count' => $activeRelays,
-                    'relays' => array_map(function($relay) {
-                        return [
-                            'type' => $relay['type'],
-                            'status' => $relay['status'],
-                            'user_fd' => $relay['user_fd'],
-                            'relay_fd' => $relay['relay_fd'] ?? 'N/A',
-                            'assistant_id' => $relay['assistant_id'],
-                            'last_activity' => date('Y-m-d H:i:s', $relay['last_activity'])
-                        ];
-                    }, $relays)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            $this->error("Timer error: " . $e->getMessage());
-            Log::error("Richbot: Timer error", ['error' => $e->getMessage()]);
-        }
-    });
-
-
-        // Handle messages
-        $this->server->on('Message', function (Server $server, $frame) {
+        \OpenSwoole\Timer::tick(10000, function () {
             try {
-                $data = json_decode($frame->data, true);
+                $this->info("\n=== Richbot Status Check (10s) ===");
 
-                if($data['type'] === 'assistant_audio_delta'){
-                    Log::info("Received audio delta", [
-                        'fd' => $frame->fd,
-                    ]);
-                } else {
-                    Log::info("Received message", [
-                        'fd' => $frame->fd,
-                        'data' => $data,
-                    ]);
-                }
-               
-                if (!$data) {
-                    Log::error("Invalid JSON received", ['fd' => $frame->fd]);
-                    return;
+                // Get connected clients
+                $connectedClients = $this->server->getClientList();
+
+                if(!$connectedClients){
+                    $this->info("No connected clients");
+                    $connectedClients = [];
                 }
 
-                if($data['type'] === 'status_check'){
-
-                    Log::info("Status check received", $data);
-                     $websocketClientList = $this->server->getClientList();
-
-                     $relayArray = [];
-                     $forwardArray = [];
-                     $relayTable = $this->relayTable;
-                     $forwardTable = $this->forwardTable;     
-
-                     foreach($relayTable as $id => $row){
-                        $relayArray[$id] = $row;
-                     }
-
-                     foreach($forwardTable as $id => $row){
-                        $forwardArray[$id] = $row;
-                     }
-
-                     Log::info("Relay table forwarded to client {$frame->fd}", $relayArray);
-                     Log::info("Forward table forwarded to client {$frame->fd}", $forwardArray);
-
-                    
-
-                    Log::info("Sending client list", $websocketClientList);                   
-                    $this->server->push($frame->fd, json_encode(['client_list' => $websocketClientList]));
-                  
-                    $this->server->push($frame->fd, json_encode(['relay_table' => $relayArray]));
-                   
-                    $this->server->push($frame->fd, json_encode(['forward_table' => $forwardArray]));
-                    return;
-                }
-
-                // Handle start_chat event
-                if ($data['type'] === 'start_chat') {
-                    Log::info("Start chat event", $data);
-                    
-                    // Check if there's already a relay for this client
-                    $existingRelay = null;
-                    foreach ($this->relayTable as $id => $relay) {
-                        if ($relay['user_fd'] === $frame->fd) {
-                            $existingRelay = $relay;
-                            break;
-                        }
-                    }
-
-                    if ($existingRelay) {
-                        Log::info("Relay already exists for client", [
-                            'user_fd' => $frame->fd,
-                            'relay_fd' => $existingRelay['relay_fd']
-                        ]);
-                        return;
-                    }
-
-                    $chatId = uniqid('chat_', true);
-                    $assistantId = $data['assistant_id'];
-
-                    // Store the initial connection in relay table
-                    $this->relayTable->set($chatId, [
-                        'user_fd' => $frame->fd,
-                        'assistant_id' => intval($assistantId),
-                        'type' => 'openai',
-                        'status' => 'waiting',
-                        'last_activity' => time()
-                    ]);
-
-                    // Start the relay process
-                    $artisanCommand = [
-                        'php',
-                        'artisan',
-                        'richbot:websocket-relay',
-                        $chatId,
-                        $assistantId
-                    ];
                 
-                    $process = new Process($artisanCommand);
-                    $process->setTimeout(null);
-                    $process->disableOutput();
-                    $process->start();
-                    
-                    Log::info("Background process started with PID: " . $process->getPid());
 
-                    // Update relay table with process ID
-                    $this->relayTable->set($chatId, [
-                        'user_fd' => $frame->fd,
-                        'assistant_id' => intval($assistantId),
-                        'type' => 'openai',
-                        'status' => 'waiting',
-                        'last_activity' => time(),
-                        'pid' => $process->getPid()
-                    ]);
+                $connectedFds = array_flip($connectedClients);
+                
+                $this->info("Connected Clients: " . count($connectedClients));
+                Log::info("Connected clients count", ['count' => count($connectedClients)]);
 
-                    return;
-                }
+                // Check Forward Routes
+                $routes = iterator_to_array($this->forwardTable);
+                $this->info("Active Forward Routes: " . count($routes));
                 
-                // Forward other messages to appropriate target
-                $targetFd = null;
-                
-                // First check forward routes
-                foreach ($this->forwardTable as $id => $route) {
-                    if ($route['source_fd'] == $frame->fd) {
-                        $targetFd = $route['target_fd'];
-                        break;
-                    }
-                }
-                
-                // If no forward route, check relay table
-                if (!$targetFd) {
-                    foreach ($this->relayTable as $chatId => $data) {
-                        if ($data['user_fd'] == $frame->fd && isset($data['relay_fd'])) {
-                            $targetFd = $data['relay_fd'];
-                            break;
+                foreach ($routes as $id => $route) {
+                    $sourceConnected = isset($connectedFds[$route['source_fd']]);
+                    $targetConnected = isset($connectedFds[$route['target_fd']]);
+
+                    if (!$sourceConnected || !$targetConnected) {
+                        $this->info("Cleaning up disconnected route: {$route['chat_id']}");
+                        
+                        // Clean up disconnected routes
+                        if (!$sourceConnected && !$targetConnected) {
+                            $this->forwardTable->del($id);
+                        } elseif (!$sourceConnected) {
+                            $this->server->disconnect($route['target_fd']);
+                            $this->forwardTable->del($id);
+                        } elseif (!$targetConnected) {
+                            $this->server->disconnect($route['source_fd']);
+                            $this->forwardTable->del($id);
                         }
                     }
                 }
 
-                if ($targetFd) {
-                    Log::info("Forwarding message", [
-                        'from_fd' => $frame->fd,
-                        'to_fd' => $targetFd
-                    ]);
+                // Check Relay Connections
+                $relays = iterator_to_array($this->relayTable);
+                $this->info("Active Relays: " . count($relays));
+                
+                foreach ($relays as $id => $relay) {
+                    $userConnected = isset($connectedFds[$relay['user_fd']]);
+                    $relayConnected = isset($relay['relay_fd']) && isset($connectedFds[$relay['relay_fd']]);
                     
-                    $server->push($targetFd, $frame->data);
-                } else {
-                    Log::error("No chat context found for client", [
-                        'fd' => $frame->fd,
-                        'frame' => $frame
-                    ]);
+                    // Check for stale connections (5 minutes without activity)
+                    $inactiveMinutes = floor((time() - $relay['last_activity']) / 60);
+                    if ($inactiveMinutes > 5) {
+                        $this->info("Stale relay found: {$id} (inactive for {$inactiveMinutes} minutes)");
+                    }
+
+                    if (!$userConnected || !$relayConnected) {
+                        $this->info("Cleaning up disconnected relay: {$id}");
+                        
+                        // Clean up disconnected relays
+                        if (!$userConnected && !$relayConnected) {
+                            $this->relayTable->del($id);
+                        } elseif (!$userConnected) {
+                            if ($relayConnected) {
+                                $this->server->disconnect($relay['relay_fd']);
+                            }
+                            $this->relayTable->del($id);
+                        } elseif (!$relayConnected && isset($relay['relay_fd'])) {
+                            $this->server->disconnect($relay['user_fd']);
+                            $this->relayTable->del($id);
+                        }
+                    }
                 }
+
+                // Check Client Table
+                $clients = iterator_to_array($this->clientTable);
+                $this->info("Active Clients: " . count($clients));
+                
+                foreach ($clients as $fd => $client) {
+                    if (!isset($connectedFds[$fd])) {
+                        $this->info("Removing disconnected client: {$fd} ({$client['type']})");
+                        $this->clientTable->del($fd);
+                    }
+                }
+
+                $this->info("=== Status Check Complete ===\n");
 
             } catch (\Exception $e) {
-                Log::error("Message handling error", [
+                $this->error("Timer error: " . $e->getMessage());
+                Log::error("Status check error", [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
             }
+        });
+
+        // Add timer setup right after server creation
+        \OpenSwoole\Timer::tick(10000, function () {
+            $this->info("\n=== Route Debug ===");
+            
+            foreach($this->forwardTable as $id => $route) {
+                $this->info("Forward Route: {$id} -> {$route['target_fd']} (chat: {$route['chat_id']})");
+            }
+            
+            foreach($this->relayTable as $chatId => $relay) {
+                $this->info("Relay: {$chatId} -> user_fd: {$relay['user_fd']}, relay_fd: {$relay['relay_fd']}");
+            }
+        });
+
+        // Handle messages
+        $this->server->on('Message', function (Server $server, $frame) {
+            $decodedData = json_decode($frame->data, true);
+            $truncatedData = substr($frame->data, 0, 100) . (strlen($frame->data) > 100 ? '...' : '');
+            
+            $this->info(sprintf(
+                "Message: [fd:%d] [op:%d] [flags:%d] Data: %s",
+                $frame->fd,
+                $frame->opcode,
+                $frame->flags,
+                $truncatedData
+            ));
+        
+            $clientInfo = $this->clientTable->get($frame->fd);
+
+            
+            $this->handleMessage($server, $frame);
+
+
         });
 
         // Handle tasks (OpenAI connections)
@@ -674,6 +725,22 @@ class RichbotWebsocket extends Command
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
+            }
+        });
+
+        // Add HTTP request handler for Twilio status updates
+        $this->server->on('Request', function($request, $response) {
+            $uri = $request->server['request_uri'];
+            
+            // Check if this is a Twilio status request
+            if (preg_match('#^/twilio/status$#', $uri)) {
+                $data = json_decode($request->rawContent(), true);
+                Log::info("Stream Status", $data);
+                
+                $response->status(200);
+                $response->header('Content-Type', 'application/json');
+                $response->end(json_encode(['status' => 'ok']));
+                return;
             }
         });
 

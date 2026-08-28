@@ -8,7 +8,6 @@ class Contact extends Model
 {
     protected $fillable = [
         'user_id',
-        'name',
         'email',
         'phone',
         'type',
@@ -19,15 +18,34 @@ class Contact extends Model
         'opt_in_at' => 'datetime',
     ];
 
-    public function users()
+    protected static function boot()
     {
-        return $this->belongsToMany(User::class, 'user_contacts')
-            ->withPivot('context', 'allowed_to_contact','name')
-            ->withTimestamps();
+        parent::boot();
+
+        static::saving(function ($contact) {
+            if (empty($contact->email) && empty($contact->phone)) {
+                throw new \Exception('Either email or phone must be provided.');
+            }
+        });
     }
- 
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function contactGroups()
+    {
+        return $this->hasMany(ContactGroup::class);
+    }
+
+    public function userGroups()
+    {
+        return $this->contactGroups()->where('groupable_type', User::class);
+    }
+
+    public function surveyGroups()
+    {
+        return $this->contactGroups()->where('groupable_type', SurveyCampaign::class);
     }
 }

@@ -12,7 +12,7 @@ use Illuminate\Auth\MustVerifyEmail;
 
 class User extends Authenticatable
 {
-    use  HasApiTokens;
+    use  HasApiTokens, Notifiable, MustVerifyEmail;
 
 
     /**
@@ -61,9 +61,29 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Role::class);
     }
+
+    public function assistants()
+    {
+        return $this->hasMany(Assistant::class);
+    }
+
+    public function toolGroups()
+    {
+        return $this->belongsToMany(ToolGroup::class, 'tool_group_user');
+    }
+
+    protected $with = ['roles', 'toolGroups'];
+
     public function hasRole($role)
     {
-        return $this->roles->contains('name', $role);
+        // Convert single role to array for consistent handling
+        $roles = is_array($role) ? $role : [$role];
+        
+        // Convert all roles to lowercase for case-insensitive comparison
+        $roles = array_map('strtolower', $roles);
+        
+        // Check if user has any of the specified roles
+        return $this->roles->whereIn('name', $roles)->isNotEmpty();
     }
 
     public function eventLogs()
@@ -71,5 +91,22 @@ class User extends Authenticatable
         return $this->morphMany(EventLog::class, 'loggable');
     }
 
+    /**
+     * Override the default email verification notification to use our custom API-based system
+     */
+    public function sendEmailVerificationNotification()
+    {
+        // Use our custom email verification controller instead of Laravel's built-in one
+        $controller = new \App\Http\Controllers\EmailVerificationController();
+        
+        // Create a request with the user
+        $request = new \Illuminate\Http\Request();
+        $request->setUserResolver(function () {
+            return $this;
+        });
+        
+        // Send the verification token
+        return $controller->requestEmailVerificationToken($request);
+    }
 
 }

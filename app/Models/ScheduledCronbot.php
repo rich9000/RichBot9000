@@ -24,10 +24,15 @@ class ScheduledCronbot extends Model
     protected $fillable = [
         'user_id',
         'assistant_id',
+        'name',
+        'description',
+        'conversation_path_id',
         'prompt',
+        'tools',
         'is_repeating',
-        'repeat_interval',
+    //    'repeat_interval',
         'schedule',
+        'scheduling_metadata',
         'next_run_at',
         'last_run_at',
         'end_at',
@@ -35,6 +40,8 @@ class ScheduledCronbot extends Model
         'success_tool_id',
         'pause_tool_id',
         'is_active',
+        'type',
+        'status',
     ];
 
     /**
@@ -44,6 +51,8 @@ class ScheduledCronbot extends Model
      */
     protected $casts = [
         'is_repeating' => 'boolean',
+        'tools' => 'array',
+        'scheduling_metadata' => 'array',
         'next_run_at' => 'datetime',
         'last_run_at' => 'datetime',
         'end_at' => 'datetime',
@@ -64,6 +73,14 @@ class ScheduledCronbot extends Model
     public function assistant()
     {
         return $this->belongsTo(Assistant::class);
+    }
+
+    /**
+     * Get the conversation path assigned to the task.
+     */
+    public function conversationPath()
+    {
+        return $this->belongsTo(ConversationPath::class);
     }
 
     /**

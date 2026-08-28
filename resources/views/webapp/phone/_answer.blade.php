@@ -154,7 +154,7 @@ function connectToAssistant(assistantId) {
             socket = null;
         }
 
-        socket = new WebSocket(`wss://richbot9000.com:9501?assistant=${assistantId}&token=${appState.apiToken}`);
+        socket = new WebSocket(`${window.appConfig.wsUrl}?assistant=${assistantId}&token=${appState.apiToken}`);
         
         socket.addEventListener('open', () => {
             handleSocketOpen(assistant);
@@ -217,7 +217,7 @@ async function connect() {
 
     try {
         sessionId = generateSessionId();
-        socket = new WebSocket('wss://richbot9000.com:9501?phone='+userName+'&token='+ appState.apiToken);
+        socket = new WebSocket(`${window.appConfig.wsUrl}?phone=${userName}&token=${appState.apiToken}`);
 
         socket.addEventListener('open', handleSocketOpen);
         socket.addEventListener('message', handleSocketMessage);

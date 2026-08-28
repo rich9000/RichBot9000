@@ -85,7 +85,7 @@ let connectionManager = {
     },
 
     setupWebSocket() {
-        this.ws = new WebSocket(`wss://richbot9000.com:9501?token=${appState.apiToken}`);
+        this.ws = new WebSocket(`${window.appConfig.wsUrl}?token=${appState.apiToken}`);
         
         this.ws.onopen = () => {
             console.log('WebSocket connected');

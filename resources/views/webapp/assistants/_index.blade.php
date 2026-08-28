@@ -1,17 +1,20 @@
+<!-- Load Assistants Button -->
+<button id="loadAssistantsButton" class="btn btn-primary mb-3">
+    <i class="fas fa-sync-alt"></i> Reload Assistants
+</button>
+
 <!-- Add Assistant Button -->
-<button id="addAssistantButton" class="btn btn-success mb-3">Add Assistant</button>
+<button id="addAssistantButton" class="btn btn-success mb-3" style="display: none;">Add Assistant</button>
 
 <!-- Assistants Table -->
 <table id="assistantsTable" class="display table table-bordered table-striped">
     <thead>
     <tr>
         <th>Name</th>
-        <th>Type</th> <!-- New Type Column -->
-        <th>Interactive</th> <!-- New Interactive Column -->
+        <th>Type</th>
+        <th>Pub</th>
         <th>System Message</th>
-        <th>Model</th>
         <th>Tools</th>
-        <th>Created At</th>
         <th>Actions</th>
     </tr>
     </thead>
@@ -19,13 +22,13 @@
 </table>
 
 <!-- Add/Edit Assistant Modal -->
-<div class="modal fade" id="assistantModal" tabindex="-1" aria-labelledby="assistantModalLabel" aria-hidden="true">
+<div class="modal fade" id="assistantModal" tabindex="-1" aria-labelledby="assistantModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog " style="--bs-modal-width: 900px;width:80%">
         <div class="modal-content">
             <!-- Modal Header -->
             <div class="modal-header">
                 <h5 class="modal-title" id="assistantModalLabel">Add/Edit Assistant</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" id="assistantModalClose" aria-label="Close"></button>
             </div>
 
             <!-- Modal Body -->
@@ -57,6 +60,8 @@
                             <option value="assistant">Assistant</option>
                             <option value="transform">Transform</option>
                             <option value="context">Context</option>
+                            <option value="gatekeeper">Gatekeeper</option>
+                            <option value="cron">Cron</option>
                             <!-- Add other types as needed -->
                         </select>
                     </div>
@@ -70,9 +75,41 @@
                     </div>
 
                     <div class="mb-3">
+                        <label for="assistantIsPublic" class="form-label">Public</label>
+                        <select class="form-control" id="assistantIsPublic">
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label for="successToolSelect" class="form-label">Success Tool</label>
                         <select class="form-control" id="successToolSelect">
                             <option value="">Select a Tool (optional)</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="successAssistantSelect" class="form-label">Success Assistant</label>
+                        <select class="form-control" id="successAssistantSelect">
+                            <option value="">Select an Assistant (optional)</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="failToolSelect" class="form-label">Fail Tool</label>
+                        <select class="form-control" id="failToolSelect">
+                            <option value="">Select a Tool (optional)</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="failAssistantSelect" class="form-label">Fail Assistant</label>
+                        <select class="form-control" id="failAssistantSelect">
+                            <option value="">Select an Assistant (optional)</option>
                             <!-- Options will be populated dynamically -->
                         </select>
                     </div>
@@ -95,7 +132,7 @@
 </div>
 
 <!-- Assign Tools Modal -->
-<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true">
+<div class="modal fade" id="toolsModal" tabindex="-1" aria-labelledby="toolsModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog">
         <div class="modal-content">
             <!-- Modal Header -->
@@ -124,8 +161,50 @@
     </div>
 </div>
 
-<!-- Load Assistants Button -->
-<button id="loadAssistantsButton" class="btn btn-primary mb-3">Load Assistants</button>
+<!-- Add View Assistant Modal -->
+<div class="modal fade" id="viewAssistantModal" tabindex="-1" aria-labelledby="viewAssistantModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewAssistantModalLabel">Assistant Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Basic Information</h6>
+                        <dl class="row">
+                            <dt class="col-sm-4">Name</dt>
+                            <dd class="col-sm-8" id="view-name"></dd>
+                            
+                            <dt class="col-sm-4">Type</dt>
+                            <dd class="col-sm-8" id="view-type"></dd>
+                            
+                            <dt class="col-sm-4">Interactive</dt>
+                            <dd class="col-sm-8" id="view-interactive"></dd>
+                            
+                            <dt class="col-sm-4">Model</dt>
+                            <dd class="col-sm-8" id="view-model"></dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Tools</h6>
+                        <div id="view-tools" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>System Message</h6>
+                        <pre id="view-system-message" class="border rounded p-2" style="white-space: pre-wrap;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- JavaScript -->
 <script>
@@ -135,6 +214,33 @@
         return string.charAt(0).toUpperCase() + string.slice(1);
     }
 
+    // Check if user has required roles for assistants
+    function hasAssistantAccess() {
+
+        console.log('hasAssistantAccess');
+        console.log(appState.user);
+
+        const userRoles = appState.user?.roles?.map(role => role.name.toLowerCase()) || [];
+        return userRoles.some(role => ['assistant_user', 'assistant_admin'].includes(role));
+    }
+
+    // Check if user can edit an assistant
+    function canEditAssistant(assistant) {
+        const userRoles = appState.user?.roles?.map(role => role.name.toLowerCase()) || [];
+        return userRoles.includes('assistant_admin') || assistant.user_id === appState.user?.id;
+    }
+
+    // Show/hide add button based on roles
+    function updateAssistantButtonVisibility() {
+        const addButton = document.getElementById('addAssistantButton');
+        if (addButton) {
+            addButton.style.display = hasAssistantAccess() ? 'inline-block' : 'none';
+        }
+    }
+
+    // Call this when the page loads and when roles change
+    updateAssistantButtonVisibility();
+    document.addEventListener('roleChanged', updateAssistantButtonVisibility);
 
     // Helper Function to Show Loading Spinner
     function toggleSpinner(button, show) {
@@ -161,7 +267,11 @@
             model_id: document.getElementById('assistantModelSelect').value,
             type: document.getElementById('assistantType').value,
             interactive: document.getElementById('assistantInteractive').value,
+            is_public: document.getElementById('assistantIsPublic').value,
             success_tool_id: document.getElementById('successToolSelect').value || null,
+            success_assistant_id: document.getElementById('successAssistantSelect').value || null,
+            fail_tool_id: document.getElementById('failToolSelect').value || null,
+            fail_assistant_id: document.getElementById('failAssistantSelect').value || null,
             tool_ids: Array.from(document.querySelectorAll('#toolsCheckboxes input:checked')).map(checkbox => checkbox.value)
         };
 
@@ -188,7 +298,10 @@
             .then(response => response.json())
             .then(() => {
                 alert('Assistant saved successfully.');
-                new bootstrap.Modal(document.getElementById('assistantModal')).hide();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('assistantModal'));
+                if (modal) {
+                    modal.dispose();
+                }
                 loadAssistantsDataTables();
             })
             .catch(err => {
@@ -206,7 +319,7 @@
         toggleSpinner(document.getElementById('saveAssistantButton'), false);
 
         // Load dependencies for the modal
-        Promise.all([loadTools1(), loadModels(), loadSuccessTools()])
+        Promise.all([loadTools1(), loadModels(), loadSuccessTools(), loadFailTools(), loadAssistantsForDropdowns()])
             .then(() => {
                 if (assistantId) {
                     document.getElementById('assistantModalLabel').innerHTML = '<i class="fas fa-user-edit"></i> Edit Assistant';
@@ -224,7 +337,11 @@
                             document.getElementById('assistantModelSelect').value = assistant.model_id;
                             document.getElementById('assistantType').value = assistant.type || '';
                             document.getElementById('assistantInteractive').value = assistant.interactive ? '1' : '0';
+                            document.getElementById('assistantIsPublic').value = assistant.is_public ? '1' : '0';
                             document.getElementById('successToolSelect').value = assistant.success_tool_id || '';
+                            document.getElementById('successAssistantSelect').value = assistant.success_assistant_id || '';
+                            document.getElementById('failToolSelect').value = assistant.fail_tool_id || '';
+                            document.getElementById('failAssistantSelect').value = assistant.fail_assistant_id || '';
 
                             assistant.tools.forEach(tool => {
                                 const toolCheckbox = document.getElementById(`tool-${tool.id}`);
@@ -310,17 +427,28 @@
 
     // Load Success Tools into the Success Tool Select Dropdown
     function loadSuccessTools() {
+        const successToolSelect = document.getElementById('successToolSelect');
+        successToolSelect.innerHTML = '<option value="">Select a Tool (optional)</option>'; // Default option
 
-                const successToolSelect = document.getElementById('successToolSelect');
-                successToolSelect.innerHTML = '<option value="">Select a Tool (optional)</option>'; // Default option
+        appState.data.tools.forEach(tool => {
+            const option = document.createElement('option');
+            option.value = tool.id;
+            option.textContent = tool.name;
+            successToolSelect.appendChild(option);
+        });
+    }
 
-                appState.data.tools.forEach(tool => {
-                    const option = document.createElement('option');
-                    option.value = tool.id;
-                    option.textContent = tool.name;
-                    successToolSelect.appendChild(option);
-                });
+    // Load Fail Tools into the Fail Tool Select Dropdown
+    function loadFailTools() {
+        const failToolSelect = document.getElementById('failToolSelect');
+        failToolSelect.innerHTML = '<option value="">Select a Tool (optional)</option>'; // Default option
 
+        appState.data.tools.forEach(tool => {
+            const option = document.createElement('option');
+            option.value = tool.id;
+            option.textContent = tool.name;
+            failToolSelect.appendChild(option);
+        });
     }
 
     // Handle Add Assistant Button
@@ -339,9 +467,13 @@
         document.getElementById('assistantForm').reset();
         document.getElementById('toolsCheckboxes').innerHTML = '';
         document.getElementById('assistantId').value = '';
-        document.getElementById('assistantType').value = ''; // Reset Type
-        document.getElementById('assistantInteractive').value = '0'; // Reset Interactive to 'No'
-        document.getElementById('successToolSelect').innerHTML = '<option value="">Select a Tool (optional)</option>'; // Reset Success Tool Select
+        document.getElementById('assistantType').value = '';
+        document.getElementById('assistantInteractive').value = '0';
+        document.getElementById('assistantIsPublic').value = '0';
+        document.getElementById('successToolSelect').innerHTML = '<option value="">Select a Tool (optional)</option>';
+        document.getElementById('successAssistantSelect').innerHTML = '<option value="">Select an Assistant (optional)</option>';
+        document.getElementById('failToolSelect').innerHTML = '<option value="">Select a Tool (optional)</option>';
+        document.getElementById('failAssistantSelect').innerHTML = '<option value="">Select an Assistant (optional)</option>';
     }
 
     // Load Assistants into the DataTable
@@ -470,7 +602,10 @@
             .then(response => response.json())
             .then(() => {
                 alert('Tools updated successfully.');
-                new bootstrap.Modal(document.getElementById('toolsModal')).hide();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('toolsModal'));
+                if (modal) {
+                    modal.dispose();
+                }
                 loadAssistantsDataTables();
             })
             .catch(err => {
@@ -492,17 +627,11 @@
 
     // Load Assistants into DataTable with Sorting and Searching
     function loadAssistantsDataTables() {
-
-
-
-
-
         const assistantsTable = document.querySelector('#assistantsTable');
 
-// Initialize DataTable
+        // Initialize DataTable
         const dataTable = $(assistantsTable).DataTable({
             ajax: function(data, callback, settings) {
-                // Fetch data using fetch API
                 fetch('/api/ollama_assistants', {
                     method: 'GET',
                     headers: {
@@ -510,40 +639,58 @@
                         'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
-                    credentials: 'omit'  // Prevent cookies from being sent
+                    credentials: 'omit'
                 })
                     .then(response => response.json())
                     .then(data => {
-                        console.log('data', data); // Debugging: Verify the fetched data structure
-
                         const assistantsArray = Object.values(data.assistants);
-                        console.log(assistantsArray);
                         // Transform the data into the correct format for DataTables
-                        const formattedData = assistantsArray.map(assistant => ({
-                            id: assistant.id,
-                            name: assistant.name || 'N/A',
-                            type: assistant.type ? capitalizeFirstLetter(assistant.type) : 'N/A',
-                            interactive: assistant.interactive ? 'Yes' : 'No',
-                            system_message: assistant.system_message.length > 30
-                                ? `<span class="system-message-short" data-full-message="${assistant.system_message}">
-                        ${assistant.system_message.substring(0, 30)}...
-                        <a href="#" class="expand-message">[more]</a>
-                      </span>`
-                                : assistant.system_message,
-                            model: assistant.model ? `${assistant.model.type}: ${assistant.model.name}` : 'No Model',
-                            tools: assistant.tools && assistant.tools.length ? assistant.tools.map(tool => tool.name).join(', ') : 'No Tools',
-                            created_at: assistant.created_at ? new Date(assistant.created_at).toLocaleString() : 'N/A',
-                            actions: `
-                    <button class="btn btn-warning btn-sm edit-assistant-btn" data-assistant-id="${assistant.id}">
-    <i class="fas fa-edit"></i> Edit
-</button>
-                    <button class="btn btn-info btn-sm more-info-btn" data-assistant-id="${assistant.id}" data-assistant-name="${assistant.name}">
-                        <i class="fas fa-info-circle"></i> View
-                    </button>
-                `
-                        }));
+                        const formattedData = assistantsArray.map(assistant => {
+                            // Format tools display
+                            let toolsDisplay = 'No Tools';
+                            if (assistant.tools && assistant.tools.length > 0) {
+                                const toolNames = assistant.tools.map(tool => tool.name);
+                                if (toolNames.length <= 3) {
+                                    toolsDisplay = toolNames.join('<br>');
+                                } else {
+                                    toolsDisplay = `
+                                        <div class="tools-display">
+                                            <span class="tools-preview">${toolNames.slice(0, 3).join('<br>')}</span>
+                                            <a href="#" class="show-more-tools" data-tools='${JSON.stringify(toolNames)}'>
+                                                [${toolNames.length - 3} more]
+                                            </a>
+                                        </div>
+                                    `;
+                                }
+                            }
 
-                        // Pass the processed data to DataTables using the callback function
+                            // Only show edit button if user has permission
+                            const actions = canEditAssistant(assistant) ? `
+                                <button class="btn btn-warning btn-sm edit-assistant-btn" data-assistant-id="${assistant.id}">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            ` : '';
+                            
+                            return {
+                                id: assistant.id,
+                                name: assistant.name || 'N/A',
+                                type: assistant.type ? capitalizeFirstLetter(assistant.type) : 'N/A',
+                                is_public: assistant.is_public ? 'Y' : 'N',
+                                system_message: assistant.system_message.length > 30
+                                    ? `<span class="system-message-short" data-full-message="${assistant.system_message}">
+                                        ${assistant.system_message.substring(0, 30)}...
+                                        <a href="#" class="expand-message">[more]</a>
+                                      </span>`
+                                    : assistant.system_message,
+                                tools: toolsDisplay,
+                                actions: actions + `
+                                    <button class="btn btn-info btn-sm more-info-btn" data-assistant-id="${assistant.id}" data-assistant-name="${assistant.name}">
+                                        <i class="fas fa-info-circle"></i> View
+                                    </button>
+                                `
+                            };
+                        });
+
                         callback({
                             data: formattedData
                         });
@@ -551,18 +698,16 @@
                     .catch(err => {
                         console.error("Error fetching assistants data:", err);
                         callback({
-                            data: []  // Send empty data in case of an error to prevent breaking the table
+                            data: []
                         });
                     });
             },
             columns: [
                 { data: 'name', title: 'Name' },
                 { data: 'type', title: 'Type' },
-                { data: 'interactive', title: 'Interactive' },
+                { data: 'is_public', title: 'Pub' },
                 { data: 'system_message', title: 'System Message' },
-                { data: 'model', title: 'Model' },
                 { data: 'tools', title: 'Tools' },
-                { data: 'created_at', title: 'Created At' },
                 { data: 'actions', title: 'Actions', orderable: false, searchable: false }
             ],
             destroy: true,
@@ -571,7 +716,38 @@
             paging: true
         });
 
-// Event delegation to handle clicks on the expand/collapse message link
+        // Handle tools expansion
+        $(assistantsTable).on('click', '.show-more-tools', function(event) {
+            event.preventDefault();
+            const tools = JSON.parse($(this).attr('data-tools'));
+            const parentDiv = $(this).closest('.tools-display');
+            
+            if ($(this).text().includes('more')) {
+                // Show all tools
+                parentDiv.html(`
+                    <div class="all-tools">
+                        ${tools.join('<br>')}
+                        <a href="#" class="show-less-tools" data-tools='${JSON.stringify(tools)}'>[show less]</a>
+                    </div>
+                `);
+            }
+        });
+
+        $(assistantsTable).on('click', '.show-less-tools', function(event) {
+            event.preventDefault();
+            const tools = JSON.parse($(this).attr('data-tools'));
+            const parentDiv = $(this).closest('.tools-display');
+            
+            // Show preview again
+            parentDiv.html(`
+                <span class="tools-preview">${tools.slice(0, 3).join('<br>')}</span>
+                <a href="#" class="show-more-tools" data-tools='${JSON.stringify(tools)}'>
+                    [${tools.length - 3} more]
+                </a>
+            `);
+        });
+
+        // Event delegation to handle clicks on the expand/collapse message link
         $(assistantsTable).on('click', '.expand-message, .collapse-message', function(event) {
             event.preventDefault();
             const parentSpan = $(this).closest('.system-message-short');
@@ -597,6 +773,131 @@
         $('#assistantsTable').on('click', '.edit-assistant-btn', function(event) {
             const assistantId = $(this).data('assistant-id');
             openAssistantModal(assistantId);
+        });
+    }
+
+    // Fix modal closing issue by using proper Bootstrap modal cleanup
+    document.getElementById('assistantModalClose').addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('assistantModal'));
+        if (modal) {
+            modal.hide();
+            // Ensure backdrop is removed
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+    });
+
+    // Add proper modal hidden event handler
+    document.getElementById('assistantModal').addEventListener('hidden.bs.modal', function () {
+        const modal = bootstrap.Modal.getInstance(this);
+        if (modal) {
+            // Ensure backdrop is removed
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.remove();
+            }
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+    });
+
+    // Handle View Assistant Button Click
+    $(document).on('click', '.more-info-btn', function() {
+        const assistantId = $(this).data('assistant-id');
+        
+        fetch(`/api/assistants/${assistantId}`, {
+            headers: {
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(assistant => {
+            // Populate the view modal with assistant details
+            document.getElementById('view-name').textContent = assistant.name;
+            document.getElementById('view-type').textContent = capitalizeFirstLetter(assistant.type || 'N/A');
+            document.getElementById('view-interactive').textContent = assistant.interactive ? 'Yes' : 'No';
+            document.getElementById('view-model').textContent = assistant.model ? `${assistant.model.type}: ${assistant.model.name}` : 'No Model';
+            
+            // Display tools
+            const toolsContainer = document.getElementById('view-tools');
+            if (assistant.tools && assistant.tools.length > 0) {
+                toolsContainer.innerHTML = assistant.tools.map(tool => 
+                    `<div class="tool-item mb-1">
+                        <i class="fas fa-tools me-2"></i>${tool.name}
+                    </div>`
+                ).join('');
+            } else {
+                toolsContainer.innerHTML = '<em>No tools assigned</em>';
+            }
+            
+            // Display system message
+            document.getElementById('view-system-message').textContent = assistant.system_message || 'No system message';
+            
+            // Show the modal
+            new bootstrap.Modal(document.getElementById('viewAssistantModal')).show();
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error loading assistant details.');
+        });
+    });
+
+    // Add event listener for view modal hidden event
+    document.getElementById('viewAssistantModal').addEventListener('hidden.bs.modal', function () {
+        const modal = bootstrap.Modal.getInstance(this);
+        if (modal) {
+            modal.dispose();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+    });
+
+    // Add function to load assistants for dropdowns
+    function loadAssistantsForDropdowns() {
+        return fetch('/api/assistants', {
+            headers: {
+                'Authorization': 'Bearer ' + appState.apiToken,
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const assistants = data.assistants || [];
+            const successAssistantSelect = document.getElementById('successAssistantSelect');
+            const failAssistantSelect = document.getElementById('failAssistantSelect');
+            
+            // Clear existing options except the first one
+            successAssistantSelect.innerHTML = '<option value="">Select an Assistant (optional)</option>';
+            failAssistantSelect.innerHTML = '<option value="">Select an Assistant (optional)</option>';
+            
+            // Add options
+            assistants.forEach(assistant => {
+                const successOption = document.createElement('option');
+                successOption.value = assistant.id;
+                successOption.textContent = assistant.name;
+                successAssistantSelect.appendChild(successOption);
+                
+                const failOption = document.createElement('option');
+                failOption.value = assistant.id;
+                failOption.textContent = assistant.name;
+                failAssistantSelect.appendChild(failOption);
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error loading assistants for dropdowns.');
         });
     }
 

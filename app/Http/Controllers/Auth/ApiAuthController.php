@@ -81,7 +81,6 @@ class ApiAuthController extends Controller
 
             EventLogger::log($user, 'login', 'API Auth Token Created.', ['ip' => $request->ip(), 'token' => $token]);
 
-
             return response()->json([
                 'message' => 'Login successful',
                 'token' => $token,

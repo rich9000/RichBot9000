@@ -28,7 +28,7 @@ class ContentController extends Controller
     {
         // Check if the view exists using the dot notation
         if (!View::exists($section)) {
-            return response()->json(['message' => 'Section not found.'], 404);
+            return response()->json(['message' => 'Section not found. ' . $section], 404);
         }
 
         // Get the authenticated user

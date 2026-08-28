@@ -15,10 +15,9 @@ class AudioController extends Controller
     public string $audio_folder = '/var/www/html/projman/storage/app/public/';
     protected $openAIService;
 
-  //  public function __construct(OpenAIService $openAIService)
-    public function __construct()
+    public function __construct(OpenAIAssistant $openAIService)
     {
-       // $this->openAIService = $openAIService;
+        $this->openAIService = $openAIService;
     }
 
     public function uploadAudioStream(Request $request)
@@ -57,10 +56,10 @@ class AudioController extends Controller
         $filePath = $request->file('audio')->store('realtime_audio', 'public');
 
 
-        $fullPath = "/var/www/html/richbot9000.com/public/storage/$filePath";
+        $fullPath = config('app.base_path')."/public/storage/$filePath";
 
         $time = time();
-        $stored_path = "/var/www/html/richbot9000.com/storage/app/public/realtime_audio/$file_owner.$time.wav";
+        $stored_path = config('app.base_path')."/storage/app/public/realtime_audio/$file_owner.$time.wav";
 
 
 
@@ -344,5 +343,91 @@ class AudioController extends Controller
         return str_replace(storage_path('app/public/'), '', $wavPath);
     }
 
+    /**
+     * Convert text to speech using OpenAI's TTS API
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function textToSpeech(Request $request)
+    {
+        try {
+            $request->validate([
+                'text' => 'required|string',
+                'voice' => 'sometimes|string|in:alloy,echo,fable,onyx,nova,shimmer',
+                'model' => 'sometimes|string|in:tts-1,tts-1-hd'
+            ]);
+
+            $text = $request->input('text');
+            $voice = $request->input('voice', 'alloy');
+            $model = $request->input('model', 'tts-1');
+
+            // Generate a unique filename
+            $filename = 'tts_' . time() . '_' . uniqid() . '.mp3';
+            $filepath = storage_path('app/public/tts/' . $filename);
+
+            // Ensure the directory exists
+            if (!file_exists(storage_path('app/public/tts'))) {
+                mkdir(storage_path('app/public/tts'), 0755, true);
+            }
+
+            // Call OpenAI TTS API
+            $response = $this->openAIService->textToSpeech($text, $voice, $model);
+
+            // Save the audio file
+            file_put_contents($filepath, $response);
+
+            // Generate a public URL
+            $url = Storage::url('tts/' . $filename);
+
+            return response()->json([
+                'status' => 'success',
+                'url' => $url,
+                'filepath' => $filepath
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Text to speech error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to convert text to speech'
+            ], 500);
+        }
+    }
+
+    /**
+     * Stream text-to-speech audio directly
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function streamTextToSpeech(Request $request)
+    {
+        try {
+            $request->validate([
+                'text' => 'required|string',
+                'voice' => 'sometimes|string|in:alloy,echo,fable,onyx,nova,shimmer',
+                'model' => 'sometimes|string|in:tts-1,tts-1-hd'
+            ]);
+
+            $text = $request->input('text');
+            $voice = $request->input('voice', 'alloy');
+            $model = $request->input('model', 'tts-1');
+
+            // Call OpenAI TTS API
+            $response = $this->openAIService->textToSpeech($text, $voice, $model);
+
+            return response($response)
+                ->header('Content-Type', 'audio/mpeg')
+                ->header('Content-Disposition', 'inline; filename="speech.mp3"');
+
+        } catch (\Exception $e) {
+            Log::error('Text to speech streaming error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to convert text to speech'
+            ], 500);
+        }
+    }
 
 }

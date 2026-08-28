@@ -134,6 +134,30 @@ return [
             'days' => 14,
         ],
 
+        'twilio' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/twilio.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
+        'openai_tools' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/openai_tools.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
+        'openai' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/openai.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
+        'message_flow' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/message_flow.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+        ],
+
     ],
 
 ];

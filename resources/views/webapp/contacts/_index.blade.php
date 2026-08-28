@@ -15,7 +15,6 @@
                     <th>Type</th>
                     <th>Allowed</th>
                     <th>Opt-in Date</th>
-                    <th>Context</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -28,44 +27,34 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Contact</h5>
+                <h5 class="modal-title">Add Contact</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="addContactForm">
                     <div class="mb-3">
-                        <label class="form-label">Name</label>
-                        <input type="text" class="form-control" name="name" required>
+                        <label for="name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" required>
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Phone</label>
-                        <input type="tel" class="form-control" name="phone">
+                        <label for="phone" class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="phone" name="phone">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Type</label>
-                        <select class="form-select" name="type">
+                        <label for="type" class="form-label">Type</label>
+                        <select class="form-control" id="type" name="type">
                             <option value="contact">Contact</option>
                             <option value="lead">Lead</option>
                             <option value="customer">Customer</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Context</label>
-                        <input type="text" class="form-control" name="context" value="contact">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Custom Name (Optional)</label>
-                        <input type="text" class="form-control" name="custom_name" placeholder="Your name for this contact">
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="allowed_to_contact" id="allowedToContact" checked>
-                            <label class="form-check-label" for="allowedToContact">Allowed to Contact</label>
-                        </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="allowedToContact" name="allowed_to_contact" checked>
+                        <label class="form-check-label" for="allowedToContact">Allowed to Contact</label>
                     </div>
                 </form>
             </div>
@@ -78,8 +67,6 @@
 </div>
 
 <script>
-    
-    
     const contactsTable = $('#contactsTable').DataTable({
         ajax: {
             url: '/api/contacts',
@@ -88,47 +75,58 @@
         },
         columns: [
             { 
-                data: null,
-                defaultContent: '',
-                render: function(data, type, row) {
-                    const pivotName = row.pivot?.name ? ` (${row.pivot.name})` : '';
-                    return row.name + pivotName;
+                data: 'contact_groups',
+                render: function(data) {
+                    return data && data.length > 0 ? data[0].name : 'N/A';
                 }
             },
-            { data: 'email', defaultContent: '' },
+            { data: 'email' },
             { data: 'phone', defaultContent: '' },
-            { data: 'type', defaultContent: 'contact' },
             { 
-                data: 'pivot.allowed_to_contact',
-                defaultContent: '',
+                data: 'contact_groups',
                 render: function(data) {
-                    return data ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>';
+                    return data && data.length > 0 ? data[0].type : 'contact';
+                }
+            },
+            { 
+                data: 'contact_groups',
+                render: function(data) {
+                    return data && data.length > 0 ? 
+                        (data[0].allowed_to_contact ? 
+                            '<span class="badge bg-success">Yes</span>' : 
+                            '<span class="badge bg-danger">No</span>') : 
+                        '<span class="badge bg-secondary">N/A</span>';
                 }
             },
             { 
                 data: 'opt_in_at',
-                defaultContent: 'Not opted in',
                 render: function(data) {
                     return data ? new Date(data).toLocaleDateString() : 'Not opted in';
                 }
             },
-            { 
-                data: 'pivot.context',
-                defaultContent: 'contact'
-            },
             {
                 data: 'id',
-                defaultContent: '',
                 render: function(data, type, row) {
                     if (!data) return '';
-                    return `
+                    let buttons = `
                         <button class="btn btn-sm btn-info" onclick="editContact(${data})">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteContact(${data}, '${row.name}')">
+                        <button class="btn btn-sm btn-danger" onclick="deleteContact(${data}, '${row.contact_groups[0]?.name || 'Contact'}')">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
+                    
+                    // Add opt-in button if not opted in
+                    if (!row.opt_in_at) {
+                        buttons += `
+                            <button class="btn btn-sm btn-success" onclick="startOptIn(${data})">
+                                <i class="fas fa-check"></i> Start Opt-In
+                            </button>
+                        `;
+                    }
+                    
+                    return buttons;
                 }
             }
         ],
@@ -138,10 +136,7 @@
             processing: 'Loading contacts...'
         },
         pageLength: 10,
-        responsive: true,
-        error: function(xhr, error, thrown) {
-            console.error('DataTables error:', error, thrown);
-        }
+        responsive: true
     });
 
     function editContact(id) {
@@ -153,20 +148,12 @@
             return response.json();
         })
         .then(contact => {
-
-console.log(contact);
-console.log(contact.users[0]);
-console.log(contact.users[0].pivot.name);
-
-
             const form = $('#addContactForm')[0];
-            form.name.value = contact.name;
+            form.name.value = contact.contact_groups[0]?.name || '';
             form.email.value = contact.email;
             form.phone.value = contact.phone || '';
-            form.type.value = contact.type || 'contact';
-            form.context.value = contact.users[0].pivot.context || 'contact';
-            form.custom_name.value = contact.users[0].pivot.name || '';
-            form.allowed_to_contact.checked = contact.users[0].pivot.allowed_to_contact ?? true;
+            form.type.value = contact.contact_groups[0]?.type || 'contact';
+            form.allowed_to_contact.checked = contact.contact_groups[0]?.allowed_to_contact ?? true;
             
             $('#saveContactBtn')
                 .data('mode', 'edit')
@@ -196,7 +183,73 @@ console.log(contact.users[0].pivot.name);
                 showAlert('Error removing contact', 'danger');
             });
         }
-    } 
+    }
+
+    function startOptIn(contactId) {
+        fetch(`/api/contacts/${contactId}/start-opt-in`, {
+            method: 'POST',
+            headers: apiHeaders()
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            if (data.conversation_id) {
+                // Start polling for conversation status
+                pollConversationStatus(data.conversation_id, contactId);
+                showAlert('Opt-in process started', 'info');
+            } else {
+                showAlert('Error starting opt-in process', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error starting opt-in process', 'danger');
+        });
+    }
+
+    function stopOptIn(contactId) {
+        if (confirm('Are you sure you want to opt-out this contact?')) {
+            fetch(`/api/contacts/${contactId}/opt-out`, {
+                method: 'POST',
+                headers: apiHeaders()
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                contactsTable.ajax.reload();
+                showAlert('Contact has been opted out', 'success');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showAlert('Error opting out contact', 'danger');
+            });
+        }
+    }
+
+    function pollConversationStatus(conversationId, contactId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/api/conversations/${conversationId}`, {
+                headers: apiHeaders()
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    contactsTable.ajax.reload();
+                    showAlert('Contact has been opted in successfully', 'success');
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    showAlert('Opt-in process failed', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error polling conversation status:', error);
+                clearInterval(pollInterval);
+                showAlert('Error checking opt-in status', 'danger');
+            });
+        }, 5000); // Poll every 5 seconds
+    }
 
     $('#saveContactBtn').click(function() {
         const mode = $(this).data('mode') || 'create';
@@ -215,7 +268,7 @@ console.log(contact.users[0].pivot.name);
                 ...apiHeaders(), 
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data) 
+            body: JSON.stringify(data)
         })
         .then(response => {
             if (!response.ok) throw new Error('Network response was not ok');
@@ -245,8 +298,6 @@ console.log(contact.users[0].pivot.name);
         
         // Set default values
         $('input[name="allowed_to_contact"]').prop('checked', true);
-        $('input[name="context"]').val('contact');
         $('select[name="type"]').val('contact');
     });
-
 </script>

@@ -193,7 +193,7 @@ class UserController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function destroy(Request $request, User $user)
-    {
+    {        
         $user->delete();
 
         if ($request->wantsJson()) {
