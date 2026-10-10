@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Services\AisCrmLead;
 use App\Services\ConversationPathService;
 use Illuminate\Support\Facades\Log;
 use Twilio\TwiML\VoiceResponse;
@@ -54,6 +55,8 @@ class ConversationPathCallController extends Controller
             'CallToken' => 'nullable|string',
             'AccountSid' => 'nullable|string',
         ]);
+
+        $this->logInquiryLead($conversationPathId, $validated);
 
         $path_state = ['twilio_call'=>$validated];
 
@@ -113,6 +116,41 @@ class ConversationPathCallController extends Controller
         
         return response($twiml)->header('Content-Type', 'text/xml');
 
+    }
+
+    /**
+     * @param  array<string, mixed>  $call
+     */
+    private function logInquiryLead($conversationPathId, array $call): void
+    {
+        $direction = strtolower((string) ($call['Direction'] ?? 'inbound'));
+        if (str_contains($direction, 'outbound')) {
+            return;
+        }
+
+        $to = preg_replace('/\D/', '', (string) ($call['To'] ?? '')) ?? '';
+        $inquiry = in_array($to, ['18665947659', '8665947659', '17853699633', '7853699633'], true);
+        if (! $inquiry) {
+            return;
+        }
+
+        $from = (string) ($call['From'] ?? '');
+        $sid = preg_replace('/[^A-Za-z0-9]/', '', (string) ($call['CallSid'] ?? '')) ?? '';
+        $legacy = $sid !== '' ? 'CALL-'.substr($sid, 0, 40) : null;
+
+        try {
+            app(AisCrmLead::class)->capture([
+                'company' => 'Inbound '.$from,
+                'contact' => 'Inbound '.$from,
+                'phone' => $from,
+                'message' => 'Inbound inquiry call to '.$call['To'].' from '.$from.' on path '.$conversationPathId.'.',
+                'source' => 'demo_line',
+                'link' => 'https://richbot9000.com/api/conversation-path-call/start/'.$conversationPathId,
+                'legacy' => $legacy,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Inbound inquiry was not saved to CRM', ['error' => $e->getMessage()]);
+        }
     }
 
     

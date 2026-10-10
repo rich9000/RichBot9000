@@ -49,6 +49,12 @@ return [
         'organization' => env('OPENAI_ORGANIZATION'),
     ],
 
+
+    'ais_crm' => [
+        'url' => env('AIS_CRM_URL', 'https://aisolutionskc.com'),
+        'token' => env('AIS_CRM_TOKEN'),
+    ],
+
     'rainbow' => [
         'api_url' => env('RAINBOW_API_URL', 'https://dash.rainbowtel.net'),
         'api_token' => env('RAINBOW_API_TOKEN'),
